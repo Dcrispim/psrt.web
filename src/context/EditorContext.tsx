@@ -37,6 +37,7 @@ import {
 import { prepareHtmlVariants } from '../lib/prepareHtmlVariants';
 import { saveLastPsrt } from '../lib/localPsrt';
 import { sanitizeDocumentStylesForSave } from '../lib/textBlockAdapter';
+import { NOT_FOUND_IMAGE_SRC } from '../lib/notFoundImage';
 
 export type PreviewTab = 'svg' | 'web' | 'html';
 export type CompiledPreviewKind = 'svg' | 'html';
@@ -210,11 +211,14 @@ export function EditorProvider({
     }
     try {
       const uri = await api.GetAssetDataURI(imageUrl);
-      thumbCache.current.set(imageUrl, uri);
-      setBgUri(uri || null);
+      const resolved = uri || NOT_FOUND_IMAGE_SRC;
+      thumbCache.current.set(imageUrl, resolved);
+      setBgUri(resolved);
       lastBgURL.current = imageUrl;
     } catch {
-      setBgUri(null);
+      thumbCache.current.set(imageUrl, NOT_FOUND_IMAGE_SRC);
+      setBgUri(NOT_FOUND_IMAGE_SRC);
+      lastBgURL.current = imageUrl;
     }
   }, []);
 
@@ -226,10 +230,11 @@ export function EditorProvider({
       if (thumb === undefined) {
         try {
           const resolved = await api.GetAssetDataURI(p.imageUrl);
-          thumb = resolved;
-          thumbCache.current.set(p.imageUrl, resolved);
+          thumb = resolved || NOT_FOUND_IMAGE_SRC;
+          thumbCache.current.set(p.imageUrl, thumb);
         } catch {
-          continue;
+          thumb = NOT_FOUND_IMAGE_SRC;
+          thumbCache.current.set(p.imageUrl, NOT_FOUND_IMAGE_SRC);
         }
       }
       if (thumb) next[p.name] = thumb;

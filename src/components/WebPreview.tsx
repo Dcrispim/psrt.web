@@ -9,6 +9,7 @@ import { isLocalAssetRef } from '../lib/localAssetRef';
 import { stateToPsrtSection } from '../lib/stateToPsrtSection';
 import { useAdaptedEntryStyles } from '../lib/useAdaptedEntryStyles';
 import { usePageImageDataUri } from '../lib/usePageImageDataUri';
+import { NOT_FOUND_IMAGE_SRC } from '../lib/notFoundImage';
 import type { PSRTEntry } from '../types/types';
 import { visualapp } from '@wails/go/models';
 import '../styles/image-psrt.css';
@@ -131,7 +132,8 @@ export function WebPreview({ variant = 'footer' }: { variant?: 'footer' | 'canva
   const imageSrc =
     resolvedImageSrc ??
     pageImageUri ??
-    (imageUrl && /^https?:\/\//i.test(imageUrl) ? imageUrl : null);
+    (imageUrl && /^https?:\/\//i.test(imageUrl) ? imageUrl : null) ??
+    (imageUrl ? NOT_FOUND_IMAGE_SRC : null);
 
   const pageKey = state?.activePage ?? '';
   const imageKey = state?.page?.imageUrl ?? '';
@@ -209,11 +211,6 @@ export function WebPreview({ variant = 'footer' }: { variant?: 'footer' | 'canva
     return <div className="preview-web-empty">Carregando imagem…</div>;
   }
 
-  const showLocalAssetsHint =
-    resolvedImageUrl !== undefined &&
-    isLocalAssetRef(resolvedImageUrl) &&
-    !imageSrc;
-
   const selectedIndex = state?.selectedIndex ?? -1;
 
   const rootClass =
@@ -221,12 +218,6 @@ export function WebPreview({ variant = 'footer' }: { variant?: 'footer' | 'canva
 
   return (
     <div className={rootClass}>
-      {showLocalAssetsHint ? (
-        <p className="preview-web-local-hint">
-          Imagem local indisponível — execute <strong>psrt-web-connector</strong> e configure em{' '}
-          <strong>Local Connector</strong> no topo.
-        </p>
-      ) : null}
       <div
         className={isCanvas ? 'canvas-editor-stage' : undefined}
         onPointerDownCapture={isCanvas ? onMiddleDoubleClickCapture : undefined}

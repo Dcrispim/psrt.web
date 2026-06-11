@@ -1,4 +1,5 @@
 import { useEditor } from '../context/useEditor';
+import { FallbackImage } from './FallbackImage';
 
 export function PageThumbnailsSidebar() {
   const { state, thumbs, setActivePage } = useEditor();
@@ -27,16 +28,12 @@ export function PageThumbnailsSidebar() {
               aria-current={isActive ? 'page' : undefined}
               onClick={() => setActivePage(page.name)}
             >
-              {thumb ? (
-                <img
-                  className="page-thumb__img"
-                  src={thumb}
-                  alt=""
-                  draggable={false}
-                />
-              ) : (
-                <span className="page-thumb__placeholder" aria-hidden />
-              )}
+              <FallbackImage
+                className="page-thumb__img"
+                src={thumb ?? undefined}
+                alt=""
+                draggable={false}
+              />
               <span className="page-thumb__label">{page.name}</span>
             </button>
           );

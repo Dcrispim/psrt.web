@@ -3,6 +3,7 @@ import * as api from '@wails/go/main/GUIApp';
 import { isConnectorActive } from '../api/connectorConfig';
 import { resolveAssetReference } from './expandConsts';
 import { isLocalAssetRef } from './localAssetRef';
+import { NOT_FOUND_IMAGE_SRC } from './notFoundImage';
 
 function isDataUri(value: string | null | undefined): value is string {
   return typeof value === 'string' && value.startsWith('data:');
@@ -64,15 +65,16 @@ export function usePageImageDataUri(
     void (async () => {
       try {
         if (isLocalAssetRef(resolvedUrl) && !isConnectorActive()) {
+          apply(NOT_FOUND_IMAGE_SRC);
           return;
         }
         const uri = await api.GetAssetDataURI(resolvedUrl);
-        if (!cancelled && uri) {
-          apply(uri);
+        if (!cancelled) {
+          apply(uri || NOT_FOUND_IMAGE_SRC);
         }
       } catch {
-        if (!cancelled && isHttpUrl(resolvedUrl)) {
-          apply(resolvedUrl);
+        if (!cancelled) {
+          apply(isHttpUrl(resolvedUrl) ? resolvedUrl : NOT_FOUND_IMAGE_SRC);
         }
       }
     })();

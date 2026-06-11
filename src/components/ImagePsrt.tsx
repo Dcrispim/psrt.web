@@ -15,6 +15,7 @@ import { textBlockWidthPx, textFontSizePx } from '../lib/psrtGeometry';
 import { isPresentStyleValue } from '../lib/styleValue';
 import { PSRTEntry, PSRTSection } from '../types/types';
 import { FormattedText } from './FormattedText';
+import { FallbackImage } from './FallbackImage';
 
 export interface ImageReferenceMetrics {
   refWidth: number;
@@ -178,21 +179,15 @@ export default function ImagePsrt({
       style={containerStyle}
     >
       <div id="image-container" className="w-full h-full">
-        {imgSrc ? (
-          <img
-            ref={imageRef}
-            className="psrt-page-image"
-            src={imgSrc}
-            alt={alt}
-            draggable={false}
-            onDragStart={(e) => e.preventDefault()}
-            onLoad={syncRefSize}
-          />
-        ) : (
-          <div className="preview-web-empty" style={{ padding: 24 }}>
-            Sem imagem de fundo
-          </div>
-        )}
+        <FallbackImage
+          ref={imageRef}
+          className="psrt-page-image"
+          src={imgSrc || undefined}
+          alt={alt}
+          draggable={false}
+          onDragStart={(e) => e.preventDefault()}
+          onLoad={syncRefSize}
+        />
       </div>
       {showEntries && (
         <div id="entries-container" className="absolute w-full h-[100%] top-0 left-0">
