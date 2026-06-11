@@ -1,3 +1,6 @@
+import { resolveAssetReference } from './expandConsts';
+import type { PsrtDocument } from '../types/document';
+
 /** Normalizes a PSRT local asset reference (file URL or filesystem path). */
 export function normalizeFileRef(ref: string): string {
   let r = ref.trim();
@@ -95,5 +98,32 @@ export function isLocalAssetRef(raw: string): boolean {
   if (/^[a-zA-Z]:[\\/]/.test(s)) return true;
   if (s.includes('\\')) return true;
   if (s.includes('/')) return true;
+  return false;
+}
+
+function hasLocalRef(ref: string | undefined, consts: Record<string, string>): boolean {
+  if (!ref) return false;
+  return isLocalAssetRef(resolveAssetReference(ref, consts));
+}
+
+/** True when the document references local filesystem assets (pages, blocks, fonts, or consts). */
+export function documentHasLocalAssetRefs(doc: PsrtDocument | null | undefined): boolean {
+  if (!doc) return false;
+  const consts = doc.consts ?? {};
+  for (const page of doc.pages ?? []) {
+    if (hasLocalRef(page.imageUrl, consts)) return true;
+    for (const text of page.texts ?? []) {
+      if (hasLocalRef(text.imageRef, consts)) return true;
+    }
+    for (const mask of page.masks ?? []) {
+      if (hasLocalRef(mask.imageRef, consts)) return true;
+    }
+  }
+  for (const font of doc.fonts ?? []) {
+    if (hasLocalRef(font, consts)) return true;
+  }
+  for (const value of Object.values(consts)) {
+    if (isLocalAssetRef(value)) return true;
+  }
   return false;
 }

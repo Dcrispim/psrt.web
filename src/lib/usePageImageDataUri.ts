@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as api from '@wails/go/main/GUIApp';
-import { isPaired, isConnectorOnline } from '../api/connectorConfig';
+import { isConnectorActive } from '../api/connectorConfig';
 import { resolveAssetReference } from './expandConsts';
 import { isLocalAssetRef } from './localAssetRef';
 
@@ -63,10 +63,7 @@ export function usePageImageDataUri(
 
     void (async () => {
       try {
-        if (
-          isLocalAssetRef(resolvedUrl) &&
-          (!isPaired() || !isConnectorOnline())
-        ) {
+        if (isLocalAssetRef(resolvedUrl) && !isConnectorActive()) {
           return;
         }
         const uri = await api.GetAssetDataURI(resolvedUrl);

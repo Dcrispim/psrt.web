@@ -1,12 +1,21 @@
 /**
- * HTTP implementation of @wails/go/main/GUIApp for psrt-gui-web.
- * All backend calls go to psrt-web-connector.
+ * Browser implementation of @wails/go/main/GUIApp for psrt-gui-web.
+ * PSRT processing runs in WASM; the local connector is only used for local assets.
  */
 import { styleadapter, visualapp } from '@wails/go/models';
 import { resolveAssetReference } from '../lib/expandConsts';
 import { isLocalAssetRef } from '../lib/localAssetRef';
 import { fetchAuthenticatedImage } from '../lib/connectorUrl';
-import { getActiveConsts, isPaired, setActiveConsts } from './connectorConfig';
+import {
+  wasmAdaptEntriesForWeb,
+  wasmCompilePageHTMLFromDocument,
+  wasmCompilePageSVGFromDocument,
+  wasmFormatDocumentJSON,
+  wasmFormatPageDocumentJSON,
+  wasmMergePageDocumentPSRT,
+  wasmParseDocumentPSRT,
+} from '../lib/wasmClient';
+import { getActiveConsts, isConnectorActive, setActiveConsts } from './connectorConfig';
 import { connectorPostApi } from './http';
 import {
   downloadHtml,
@@ -29,12 +38,7 @@ export async function AdaptEntriesForWeb(
   canvasH: number,
   zoom: number,
 ): Promise<Array<styleadapter.WebPreviewStyle>> {
-  const raw = await connectorPostApi<unknown[]>('/adapt-entries-for-web', {
-    entriesJSON,
-    canvasW,
-    canvasH,
-    zoom,
-  });
+  const raw = wasmAdaptEntriesForWeb(entriesJSON, canvasW, canvasH, zoom);
   return raw.map((r) => styleadapter.WebPreviewStyle.createFrom(r));
 }
 
@@ -63,30 +67,48 @@ export async function AdaptTextStyleForWeb(
 export async function GetAssetDataURI(url: string): Promise<string> {
   if (!url) return '';
   const expanded = resolveAssetReference(url, getActiveConsts());
-  if (isLocalAssetRef(expanded) && isPaired()) {
-    const blobUrl = await fetchAuthenticatedImage(expanded);
-    if (blobUrl) return blobUrl;
+  if (expanded.startsWith('data:')) return expanded;
+  if (/^https?:\/\//i.test(expanded)) return expanded;
+
+  if (isLocalAssetRef(expanded)) {
+    if (!isConnectorActive()) return '';
+    try {
+      const blobUrl = await fetchAuthenticatedImage(expanded);
+      if (blobUrl) return blobUrl;
+    } catch {
+      return '';
+    }
+    try {
+      const { uri } = await connectorPostApi<{ uri: string }>('/get-asset-data-uri', {
+        url: expanded,
+      });
+      return uri ?? '';
+    } catch {
+      return '';
+    }
   }
-  const { uri } = await connectorPostApi<{ uri: string }>('/get-asset-data-uri', {
-    url: expanded,
-  });
-  return uri ?? '';
+
+  if (!isConnectorActive()) return '';
+
+  try {
+    const { uri } = await connectorPostApi<{ uri: string }>('/get-asset-data-uri', {
+      url: expanded,
+    });
+    return uri ?? '';
+  } catch {
+    return '';
+  }
 }
 
 export async function FormatDocumentJSON(docJSON: string): Promise<string> {
-  const { text } = await connectorPostApi<{ text: string }>('/format-document-json', { docJSON });
-  return text;
+  return wasmFormatDocumentJSON(docJSON);
 }
 
 export async function FormatPageDocumentJSON(
   docJSON: string,
   pageName: string,
 ): Promise<string> {
-  const { text } = await connectorPostApi<{ text: string }>('/format-page-document-json', {
-    docJSON,
-    pageName,
-  });
-  return text;
+  return wasmFormatPageDocumentJSON(docJSON, pageName);
 }
 
 export async function MergePageDocumentPSRT(
@@ -94,38 +116,25 @@ export async function MergePageDocumentPSRT(
   pageName: string,
   psrtText: string,
 ): Promise<string> {
-  const { document } = await connectorPostApi<{ document: string }>('/merge-page-document-psrt', {
-    fullDocJSON,
-    pageName,
-    psrtText,
-  });
-  return document;
+  return wasmMergePageDocumentPSRT(fullDocJSON, pageName, psrtText);
 }
 
 export async function ParseDocumentPSRT(text: string): Promise<string> {
-  const { document } = await connectorPostApi<{ document: string }>('/parse-document-psrt', { text });
-  return document;
+  return wasmParseDocumentPSRT(text);
 }
 
 export async function CompilePageSVGFromDocument(
   docJSON: string,
   page: string,
 ): Promise<{ uri: string; usedGoTextFallback: boolean }> {
-  return connectorPostApi<{ uri: string; usedGoTextFallback: boolean }>(
-    '/compile-page-svg-from-document',
-    { docJSON, pageName: page },
-  );
+  return wasmCompilePageSVGFromDocument(docJSON, page);
 }
 
 export async function CompilePageHTMLFromDocument(
   docJSON: string,
   page: string,
 ): Promise<string> {
-  const { uri } = await connectorPostApi<{ uri: string }>('/compile-page-html-from-document', {
-    docJSON,
-    pageName: page,
-  });
-  return uri;
+  return wasmCompilePageHTMLFromDocument(docJSON, page);
 }
 
 export async function OpenImageFileDialog(): Promise<string> {

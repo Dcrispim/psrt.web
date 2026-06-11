@@ -1,9 +1,13 @@
 import { useConnector } from '../context/ConnectorContext';
+import { useEditor } from '../context/useEditor';
+import { documentHasLocalAssetRefs } from '../lib/localAssetRef';
 
 export function ConnectorBanner() {
   const { status, connectorUrl } = useConnector();
+  const { document } = useEditor();
 
   if (status === 'online') return null;
+  if (!documentHasLocalAssetRefs(document)) return null;
 
   let message: string;
   if (status === 'offline') {

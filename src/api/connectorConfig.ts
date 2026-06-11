@@ -60,3 +60,7 @@ export function isConnectorOnline(): boolean {
 export function setConnectorOnline(online: boolean): void {
   connectorOnline = online;
 }
+
+export function isConnectorActive(): boolean {
+  return isConnectorOnline() && isPaired();
+}

@@ -6,6 +6,7 @@ import { ConnectorProvider } from './context/ConnectorContext';
 import { App } from './App';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { parseDocumentJson } from './lib/documentModel';
+import { initWasmClient } from './lib/wasmClient';
 import { loadDraft } from './services/documentStore';
 import './styles/global.css';
 
@@ -31,6 +32,7 @@ function Bootstrap() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
+      await initWasmClient();
       const stored = await loadDraft();
       if (!cancelled && stored?.documentJson) {
         const restore = window.confirm('Restaurar rascunho salvo localmente?');
