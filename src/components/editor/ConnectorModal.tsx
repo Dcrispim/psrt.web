@@ -39,12 +39,16 @@ export function ConnectorModal({ open, onClose, onToast }: ConnectorModalProps) 
     if (!open) return;
     setUrlDraft(connectorUrl);
     setTab('connection');
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [open, connectorUrl, onClose]);
+  }, [open, onClose]);
 
   useEffect(() => {
     if (!open || tab !== 'config' || !paired) return;
@@ -150,7 +154,12 @@ export function ConnectorModal({ open, onClose, onToast }: ConnectorModalProps) 
             <>
               <p className={s.hint}>
                 Execute <code>psrt-web-connector -config psrt-connector.ini</code> e use o código
-                exibido no terminal.
+                exibido no terminal ou na bandeja do Windows.
+              </p>
+              <p className={s.hint}>
+                Em deploy HTTPS, inclua <code>{window.location.origin}</code> em{' '}
+                <code>allowed_origin</code> no INI (vírgula para várias origens), depois{' '}
+                <strong>Recarregar INI</strong> na bandeja.
               </p>
               <div className={s.field}>
                 <label className={s.label} htmlFor="connector-url">

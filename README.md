@@ -40,6 +40,16 @@ Editor publicado em: **https://dcrispim.github.io/psrt-gui-web/**
 
 O deploy é automático a cada push na branch `main` via GitHub Actions.
 
+### Configuração inicial (uma vez)
+
+Antes do primeiro deploy, habilite o Pages no repositório:
+
+1. Abra [Settings → Pages](https://github.com/Dcrispim/psrt-gui-web/settings/pages)
+2. Em **Build and deployment → Source**, selecione **GitHub Actions**
+3. Reexecute o workflow em **Actions → Deploy GitHub Pages → Re-run all jobs**
+
+Se o job `deploy` falhar com `Failed to create deployment (status: 404)`, o Pages ainda não foi habilitado — repita os passos acima.
+
 No ambiente publicado, o upload de arquivos PSRT funciona normalmente. O conector local (`http://127.0.0.1:5278`) não funciona a partir do HTTPS do GitHub Pages (limitação cross-origin/mixed-content).
 
 ### Preview local com base path do Pages
