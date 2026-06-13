@@ -90,8 +90,11 @@ export function useWebPreviewPan(
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (!enabled || e.button !== 0) return;
-      if (shouldSkipPanTarget(e.target)) return;
+      if (!enabled) return;
+      const isMiddlePan = e.button === 1;
+      const isLeftPan = e.button === 0;
+      if (!isMiddlePan && !isLeftPan) return;
+      if (isLeftPan && shouldSkipPanTarget(e.target)) return;
 
       e.preventDefault();
       e.currentTarget.setPointerCapture(e.pointerId);

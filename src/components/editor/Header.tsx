@@ -6,6 +6,7 @@ import { AddFontModal } from './AddFontModal';
 import { SaveOptionsModal, type SaveOption } from './SaveOptionsModal';
 import { ConnectorModal } from './ConnectorModal';
 import { useConnector } from '../../context/ConnectorContext';
+import { APP_NAME, LOGO_FULL_SRC, LOGO_SMALL_SRC } from '../../lib/branding';
 import s from './header.module.css';
 
 export function Header() {
@@ -123,11 +124,20 @@ export function Header() {
     <header className={s.root} role="toolbar" aria-label="Barra do editor">
       <div className={s.row}>
         <div className={s.brand}>
-          <span className={s.logo} aria-hidden>
-            ◆
-          </span>
+          <img
+            className={`${s.logo} ${s.logoFull}`}
+            src={LOGO_SMALL_SRC}
+            alt=""
+            aria-hidden
+          />
+          <img
+            className={`${s.logo} ${s.logoSmall}`}
+            src={LOGO_SMALL_SRC}
+            alt=""
+            aria-hidden
+          />
           <div className={s.brandText}>
-            <strong>Block Editor</strong>
+            <strong>{APP_NAME}</strong>
             <span className={s.subtitle}>
               {activePage || '—'}
               {activePage ? <em className={s.dot} title="Página ativa" /> : null}

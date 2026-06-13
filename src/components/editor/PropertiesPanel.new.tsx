@@ -66,7 +66,7 @@ export function PropertiesPanel({
   }, [block?.id]);
 
   if (!block) {
-    return emptyHint ? <p className={s.emptyHint}>{emptyHint}</p> : null;
+    return <TextPropertiesPanel blocks={blocks} activeId={activeId} onSelect={onSelect} onAdd={onAdd} onDuplicate={onDuplicate} onRemove={onRemove} />;
   }
 
   const setField = <K extends keyof TextBlock>(key: K, value: TextBlock[K]) =>
@@ -112,31 +112,16 @@ export function PropertiesPanel({
   const familyOptions = fontOptions?.length
     ? fontOptions
     : [
-        { value: "Inter", label: "Inter" },
-        { value: "Roboto", label: "Roboto" },
-        { value: "system-ui", label: "Sistema" },
-      ];
+      { value: "Inter", label: "Inter" },
+      { value: "Roboto", label: "Roboto" },
+      { value: "system-ui", label: "Sistema" },
+    ];
 
   const cssRows = showAllStyles ? allStyleRowsFromBlock(block) : draftProps;
 
   return (
     <>
-      <div className={s.textBar}>
-        <select className={s.select} value={activeId} onChange={(e) => onSelect(e.target.value)}>
-          {blocks.map((b, i) => (
-            <option key={b.id} value={b.id}>#{i + 1} — {b.name}</option>
-          ))}
-        </select>
-        <button type="button" className={`${s.iconBtn} ${s.primary}`} onClick={onAdd} title="Adicionar bloco">
-          <IconPlus />
-        </button>
-        <button type="button" className={s.iconBtn} onClick={onDuplicate} title="Duplicar bloco">
-          <IconDuplicate />
-        </button>
-        <button type="button" className={`${s.iconBtn} ${s.danger}`} onClick={onRemove} title="Remover bloco">
-          <IconTrash />
-        </button>
-      </div>
+      <TextPropertiesPanel blocks={blocks} activeId={activeId} onSelect={onSelect} onAdd={onAdd} onDuplicate={onDuplicate} onRemove={onRemove} />
 
       <Section title="Posição & Tamanho">
         <ToggleGroup
@@ -446,3 +431,32 @@ export function PropertiesPanel({
     </>
   );
 }
+
+interface TextPropertiesPanelProps {
+  blocks: TextBlock[];
+  activeId: string;
+  onSelect: (id: string) => void;
+  onAdd: () => void;
+  onDuplicate: () => void;
+  onRemove: () => void;
+}
+const TextPropertiesPanel = ({ blocks, activeId, onSelect, onAdd, onDuplicate, onRemove }: TextPropertiesPanelProps) => {
+  return (
+    <div className={s.textBar}>
+      <select className={s.select} value={activeId} onChange={(e) => onSelect(e.target.value)}>
+        {blocks.map((b, i) => (
+          <option key={b.id} value={b.id}>#{i + 1} — {b.name}</option>
+        ))}
+      </select>
+      <button type="button" className={`${s.iconBtn} ${s.primary}`} onClick={onAdd} title="Adicionar bloco">
+        <IconPlus />
+      </button>
+      <button type="button" className={s.iconBtn} onClick={onDuplicate} title="Duplicar bloco">
+        <IconDuplicate />
+      </button>
+      <button type="button" className={`${s.iconBtn} ${s.danger}`} onClick={onRemove} title="Remover bloco">
+        <IconTrash />
+      </button>
+    </div>
+  );
+};

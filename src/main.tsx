@@ -8,6 +8,7 @@ import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { parseDocumentJson } from './lib/documentModel';
 import { initWasmClient } from './lib/wasmClient';
 import { loadDraft } from './services/documentStore';
+import { APP_NAME, LOGO_FULL_SRC } from './lib/branding';
 import './styles/global.css';
 
 interface DraftRestore {
@@ -18,9 +19,15 @@ interface DraftRestore {
 function LoadingScreen({ message }: { message: string }) {
   return (
     <div className="psrt-web-loading">
-      <div className="spinner" aria-hidden />
-      <h1>PSRT Visual Editor</h1>
+      <img
+        className="psrt-web-loading__logo"
+        src={LOGO_FULL_SRC}
+        alt=""
+        aria-hidden
+      />
+      <h1>{APP_NAME}</h1>
       <p>{message}</p>
+      <div className="spinner" aria-hidden />
     </div>
   );
 }

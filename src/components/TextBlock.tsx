@@ -66,6 +66,7 @@ export function TextBlock({
   };
 
   const onPointerDown = (e: PointerEvent, mode: DragMode) => {
+    if (e.button !== 0) return;
     e.stopPropagation();
     e.preventDefault();
     const stage = stageRef.current;
