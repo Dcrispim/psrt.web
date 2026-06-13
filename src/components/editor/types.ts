@@ -19,6 +19,36 @@ export const ZERO_BORDER_RADIUS: BorderRadius = {
   bottomLeft: 0,
 };
 
+export type BlurSide = "" | "left" | "right" | "top" | "bottom";
+
+export interface Blur {
+  amount: number;
+  side: BlurSide;
+}
+
+export const ZERO_BLUR: Blur = {
+  amount: 0,
+  side: "",
+};
+
+export interface Shadow {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+  blur: number;
+  color: string;
+}
+
+export const ZERO_SHADOW: Shadow = {
+  top: 0,
+  right: 0,
+  bottom: 0,
+  left: 0,
+  blur: 0,
+  color: "#000000",
+};
+
 export type BlockKind = "text" | "mask";
 
 export interface TextBlock {
@@ -65,6 +95,8 @@ export interface TextBlock {
     overflow: Overflow;
   };
   borderRadius: BorderRadius;
+  blur: Blur;
+  shadow: Shadow;
   props: { key: string; value: string }[];
   /** Raw style entries from PSRT JSON (all keys). */
   sourceStyle: { key: string; value: string }[];
@@ -105,6 +137,8 @@ export const createBlock = (i: number, kind: BlockKind = "text"): TextBlock => (
     overflow: "visible",
   },
   borderRadius: { ...ZERO_BORDER_RADIUS },
+  blur: { ...ZERO_BLUR },
+  shadow: { ...ZERO_SHADOW },
   props: [],
   sourceStyle: [],
 });

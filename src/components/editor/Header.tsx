@@ -6,7 +6,7 @@ import { AddFontModal } from './AddFontModal';
 import { SaveOptionsModal, type SaveOption } from './SaveOptionsModal';
 import { ConnectorModal } from './ConnectorModal';
 import { useConnector } from '../../context/ConnectorContext';
-import { APP_NAME, LOGO_FULL_SRC, LOGO_SMALL_SRC } from '../../lib/branding';
+import { APP_NAME, LOGO_SMALL_SRC } from '../../lib/branding';
 import s from './header.module.css';
 
 export function Header() {
@@ -21,9 +21,6 @@ export function Header() {
     saveAsHtml,
     undo,
     redo,
-    compileSvg,
-    compileHtml,
-    setAutoCompile,
     setActivePage,
     addPage,
     removePage,
@@ -33,6 +30,7 @@ export function Header() {
     addConst,
     addFont,
     showToast,
+    savingHtml,
   } = useEditor();
   const { status } = useConnector();
   const { confirm, prompt } = useAlertModal();
@@ -43,7 +41,6 @@ export function Header() {
 
   const pages = state?.pages ?? [];
   const activePage = state?.activePage ?? '';
-  const autoCompile = state?.autoCompile ?? false;
   const hasDoc = Boolean(editorDoc);
   const existingConstNames = Object.keys(state?.consts ?? {});
   const existingFontUrls = state?.fonts ?? [];
@@ -201,6 +198,12 @@ export function Header() {
           >
             <Icon name="saveAs" />
           </button>
+
+          {
+            savingHtml && (
+              <Icon name="spinner-loading" />
+            )
+          }
         </div>
 
         <div className={s.group} aria-label="Histórico">
@@ -228,39 +231,26 @@ export function Header() {
 
         <div className={s.spacer} />
 
-        <div className={`${s.group} ${s.segmented}`} aria-label="Compilar">
+        <div className={`${s.group} ${s.segmented}`} aria-label="Exportar">
           <button
             type="button"
             className={s.segBtn}
-            title="Compilar SVG"
+            title="Download SVG"
             disabled={!hasDoc}
-            onClick={() => compileSvg().catch((err) => showToast(String(err)))}
+            onClick={() => saveAsSvg().catch((err) => showToast(String(err)))}
           >
             <Icon name="svg" /> SVG
           </button>
           <button
             type="button"
             className={s.segBtn}
-            title="Compilar HTML"
+            title="Download HTML"
             disabled={!hasDoc}
-            onClick={() => compileHtml().catch((err) => showToast(String(err)))}
+            onClick={() => saveAsHtml([]).catch((err) => showToast(String(err)))}
           >
             <Icon name="html" /> HTML
           </button>
         </div>
-
-        <label className={s.switch} title="Recompila automaticamente ao editar">
-          <input
-            type="checkbox"
-            checked={autoCompile}
-            disabled={!hasDoc}
-            onChange={(e) => setAutoCompile(e.target.checked)}
-          />
-          <span className={s.track}>
-            <span className={s.thumb} />
-          </span>
-          <span className={s.switchLabel}>Auto</span>
-        </label>
       </div>
 
       <div className={`${s.row} ${s.rowSub}`}>

@@ -24,6 +24,11 @@ export interface EditorSidebarProps {
   onDuplicate: () => void;
   onRemove: () => void;
   onBlockChange: (updater: (b: TextBlock) => TextBlock) => void;
+  /** Writes styleSet/styleRemove directly to the block style JSON. */
+  onPatchStyle: (patch: {
+    styleSet?: Record<string, string>;
+    styleRemove?: string[];
+  }) => void;
   /** Writes one CSS key to the block style JSON — does not rewrite other keys. */
   onPatchStyleProp: (key: string, value: string | null) => void;
   onTypographyWrap?: (kind: InlineWrapKind, textarea: HTMLTextAreaElement) => boolean;
@@ -50,6 +55,7 @@ export function Sidebar({
   onDuplicate,
   onRemove,
   onBlockChange,
+  onPatchStyle,
   onPatchStyleProp,
   onTypographyWrap,
   onPsrtChange,
@@ -97,6 +103,7 @@ export function Sidebar({
             onDuplicate={onDuplicate}
             onRemove={onRemove}
             onChange={onBlockChange}
+            onPatchStyle={onPatchStyle}
             onPatchStyleProp={onPatchStyleProp}
             onTypographyWrap={onTypographyWrap}
             fontOptions={fontOptions}

@@ -1,6 +1,16 @@
 import { useEffect, useId, useRef, useState } from "react";
 import s from "./sidebar.module.css";
-import type { BlockKind, TextBlock } from "./types";
+import {
+  ZERO_BLUR,
+  ZERO_BORDER_RADIUS,
+  ZERO_SHADOW,
+  type Blur,
+  type BlurSide,
+  type BlockKind,
+  type BorderRadius,
+  type Shadow,
+  type TextBlock,
+} from "./types";
 import { Section } from "./Sections";
 import { SliderField, ColorField, ToggleGroup, MultiToggle, SelectField, NumberField } from "./Fields";
 import {
@@ -10,9 +20,20 @@ import {
   IconPlus, IconTrash, IconDuplicate, IconEdit, IconChevronDown,
 } from "./icons";
 import type { InlineWrapKind } from "../../lib/inlineMarkup";
-import { allStyleRowsFromBlock } from "../../lib/textBlockAdapter";
+import {
+  allStyleRowsFromBlock,
+  blurStylePatch,
+  borderRadiusStylePatch,
+  isUniformBorderRadius,
+  isUniformShadow,
+  shadowStylePatch,
+} from "../../lib/textBlockAdapter";
 import { CSS_PROP_KEYS, resolveCssPropHandler } from "./cssPropHandlers";
+const SHADOW_STEP = 0.001;
 
+function shadowIsActive(shadow: Shadow): boolean {
+  return shadow.top > 0 || shadow.right > 0 || shadow.bottom > 0 || shadow.left > 0;
+}
 interface Props {
   blocks: TextBlock[];
   activeId: string;
@@ -23,6 +44,10 @@ interface Props {
   onDuplicate: () => void;
   onRemove: () => void;
   onChange: (updater: (b: TextBlock) => TextBlock) => void;
+  onPatchStyle: (patch: {
+    styleSet?: Record<string, string>;
+    styleRemove?: string[];
+  }) => void;
   onPatchStyleProp: (key: string, value: string | null) => void;
   onTypographyWrap?: (kind: InlineWrapKind, textarea: HTMLTextAreaElement) => boolean;
   fontOptions?: { value: string; label: string }[];
@@ -39,10 +64,11 @@ export function PropertiesPanel({
   onDuplicate,
   onRemove,
   onChange,
+  onPatchStyle,
   onPatchStyleProp,
   onTypographyWrap,
   fontOptions,
-  emptyHint,
+  emptyHint: _emptyHint,
 }: Props) {
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
   const block = blocks.find((b) => b.id === activeId);
@@ -50,6 +76,10 @@ export function PropertiesPanel({
   const [showAllStyles, setShowAllStyles] = useState(false);
   const [expandedPropIndex, setExpandedPropIndex] = useState<number | null>(null);
   const [editingPropIndex, setEditingPropIndex] = useState<number | null>(null);
+  const [radiusLinked, setRadiusLinked] = useState(true);
+  const [shadowLinked, setShadowLinked] = useState(true);
+  const [shadowColorDraft, setShadowColorDraft] = useState(ZERO_SHADOW.color);
+  const shadowColorByBlockRef = useRef<Map<string, string>>(new Map());
   const editingKeyBeforeRef = useRef<string | null>(null);
   const cssPropKeyListId = useId();
 
@@ -64,6 +94,38 @@ export function PropertiesPanel({
     setExpandedPropIndex(null);
     setEditingPropIndex(null);
   }, [block?.id]);
+
+  useEffect(() => {
+    if (!block) return;
+    setRadiusLinked(isUniformBorderRadius(block.borderRadius));
+  }, [block?.id, block?.borderRadius]);
+
+  useEffect(() => {
+    if (!block) return;
+    setShadowLinked(isUniformShadow(block.shadow));
+  }, [block?.id, block?.shadow]);
+
+  useEffect(() => {
+    if (!block) return;
+    const remembered = shadowColorByBlockRef.current.get(block.id);
+    if (shadowIsActive(block.shadow)) {
+      shadowColorByBlockRef.current.set(block.id, block.shadow.color);
+      setShadowColorDraft(block.shadow.color);
+      return;
+    }
+    if (remembered) {
+      setShadowColorDraft(remembered);
+      return;
+    }
+    setShadowColorDraft(ZERO_SHADOW.color);
+  }, [
+    block?.id,
+    block?.shadow.top,
+    block?.shadow.right,
+    block?.shadow.bottom,
+    block?.shadow.left,
+    block?.shadow.color,
+  ]);
 
   if (!block) {
     return <TextPropertiesPanel blocks={blocks} activeId={activeId} onSelect={onSelect} onAdd={onAdd} onDuplicate={onDuplicate} onRemove={onRemove} />;
@@ -107,6 +169,106 @@ export function PropertiesPanel({
     }
     onPatchStyleProp(key, row.value || null);
   };
+
+  const applyBorderRadius = (r: BorderRadius) => {
+    onPatchStyle(borderRadiusStylePatch(r));
+  };
+
+  const setBorderRadius = (patch: Partial<BorderRadius>) => {
+    if (!block) return;
+    applyBorderRadius({ ...block.borderRadius, ...patch });
+  };
+
+  const setUniformRadius = (value: number) => {
+    applyBorderRadius({
+      topLeft: value,
+      topRight: value,
+      bottomRight: value,
+      bottomLeft: value,
+    });
+  };
+
+  const resetBorderRadius = () => {
+    applyBorderRadius({ ...ZERO_BORDER_RADIUS });
+  };
+
+  const enableUnifiedRadius = () => {
+    setRadiusLinked(true);
+    if (!block) return;
+    const { topLeft, topRight, bottomRight, bottomLeft } = block.borderRadius;
+    const v = Math.max(topLeft, topRight, bottomRight, bottomLeft);
+    if (!isUniformBorderRadius(block.borderRadius)) {
+      setUniformRadius(v);
+    }
+  };
+
+  const applyBlur = (blur: Blur) => {
+    onPatchStyle(blurStylePatch(blur));
+  };
+
+  const setBlurSide = (side: BlurSide) => {
+    if (!block) return;
+    applyBlur({ ...block.blur, side });
+  };
+
+  const setBlurAmount = (amount: number) => {
+    if (!block) return;
+    applyBlur({ ...block.blur, amount });
+  };
+
+  const resetBlur = () => {
+    applyBlur({ ...ZERO_BLUR });
+  };
+
+  const applyShadow = (shadow: Shadow) => {
+    if (!block) return;
+    onPatchStyle(shadowStylePatch(shadow, block.kind));
+  };
+
+  const rememberedShadowColor = () =>
+    shadowColorByBlockRef.current.get(block.id) ?? shadowColorDraft;
+
+  const setShadow = (patch: Partial<Shadow>) => {
+    if (!block) return;
+    const color = patch.color ?? rememberedShadowColor();
+    if (patch.color !== undefined) {
+      shadowColorByBlockRef.current.set(block.id, patch.color);
+      setShadowColorDraft(patch.color);
+    }
+    const next: Shadow = { ...block.shadow, ...patch, color };
+    if (!shadowIsActive(next)) return;
+    applyShadow(next);
+  };
+
+  const resetShadow = () => {
+    if (!block) return;
+    shadowColorByBlockRef.current.set(block.id, shadowColorDraft);
+    applyShadow({ ...ZERO_SHADOW });
+  };
+
+  const setUniformShadow = (amount: number) => {
+    const color = rememberedShadowColor();
+    applyShadow({
+      ...block.shadow,
+      top: amount,
+      right: amount,
+      bottom: amount,
+      left: amount,
+      color,
+    });
+  };
+
+  const enableUnifiedShadow = () => {
+    setShadowLinked(true);
+    if (!block) return;
+    const { top, right, bottom, left } = block.shadow;
+    const v = Math.max(top, right, bottom, left);
+    if (!isUniformShadow(block.shadow)) {
+      setUniformShadow(v);
+    }
+  };
+
+  const blurSideUi = block.blur.side || "all";
 
   const isMask = block.kind === "mask";
   const familyOptions = fontOptions?.length
@@ -170,6 +332,168 @@ export function PropertiesPanel({
           </div>
         </Section>
       )}
+
+
+      <Section title="Border radius" storageKey="border-radius">
+        <ToggleGroup
+          label="Cantos"
+          value={radiusLinked ? "unified" : "individual"}
+          onChange={(v) => (v === "unified" ? enableUnifiedRadius() : setRadiusLinked(false))}
+          options={[
+            { value: "unified", label: "Unificado" },
+            { value: "individual", label: "Individual" },
+          ]}
+        />
+        {radiusLinked ? (
+          <SliderField
+            label="Raio"
+            value={block.borderRadius.topLeft}
+            min={0}
+            max={100}
+            step={1}
+            onChange={setUniformRadius}
+          />
+        ) : (
+          <div className={s.grid2}>
+            <SliderField
+              label="Sup. esq."
+              value={block.borderRadius.topLeft}
+              min={0}
+              max={100}
+              step={1}
+              onChange={(v) => setBorderRadius({ topLeft: v })}
+            />
+            <SliderField
+              label="Sup. dir."
+              value={block.borderRadius.topRight}
+              min={0}
+              max={100}
+              step={1}
+              onChange={(v) => setBorderRadius({ topRight: v })}
+            />
+            <SliderField
+              label="Inf. esq."
+              value={block.borderRadius.bottomLeft}
+              min={0}
+              max={100}
+              step={1}
+              onChange={(v) => setBorderRadius({ bottomLeft: v })}
+            />
+            <SliderField
+              label="Inf. dir."
+              value={block.borderRadius.bottomRight}
+              min={0}
+              max={100}
+              step={1}
+              onChange={(v) => setBorderRadius({ bottomRight: v })}
+            />
+          </div>
+        )}
+        <button type="button" className={s.smallBtn} onClick={resetBorderRadius}>
+          Zerar border radius
+        </button>
+      </Section>
+
+      <Section title="Blur" storageKey="blur">
+        <ToggleGroup
+          label="Lado"
+          value={blurSideUi}
+          onChange={(v) => setBlurSide(v === "all" ? "" : (v as BlurSide))}
+          options={[
+            { value: "all", label: "Todos" },
+            { value: "left", label: "Esq" },
+            { value: "right", label: "Dir" },
+            { value: "top", label: "Sup" },
+            { value: "bottom", label: "Inf" },
+          ]}
+        />
+        <SliderField
+          label="Intensidade (%)"
+          value={block.blur.amount}
+          min={0}
+          max={100}
+          step={1}
+          onChange={setBlurAmount}
+        />
+        <button type="button" className={s.smallBtn} onClick={resetBlur}>
+          Zerar blur
+        </button>
+      </Section>
+
+      <Section title="Shadow" storageKey="shadow">
+        <ToggleGroup
+          label="Lados"
+          value={shadowLinked ? "unified" : "individual"}
+          onChange={(v) => (v === "unified" ? enableUnifiedShadow() : setShadowLinked(false))}
+          options={[
+            { value: "unified", label: "Unificado" },
+            { value: "individual", label: "Individual" },
+          ]}
+        />
+        {shadowLinked ? (
+          <SliderField
+            label="Distância (%)"
+            value={block.shadow.top}
+            min={0}
+            max={50}
+            step={SHADOW_STEP}
+            onChange={setUniformShadow}
+          />
+        ) : (
+          <div className={s.grid2}>
+            <SliderField
+              label="Sup."
+              value={block.shadow.top}
+              min={0}
+              max={50}
+              step={SHADOW_STEP}
+              onChange={(v) => setShadow({ top: v })}
+            />
+            <SliderField
+              label="Dir."
+              value={block.shadow.right}
+              min={0}
+              max={50}
+              step={SHADOW_STEP}
+              onChange={(v) => setShadow({ right: v })}
+            />
+            <SliderField
+              label="Inf."
+              value={block.shadow.bottom}
+              min={0}
+              max={50}
+              step={SHADOW_STEP}
+              onChange={(v) => setShadow({ bottom: v })}
+            />
+            <SliderField
+              label="Esq."
+              value={block.shadow.left}
+              min={0}
+              max={50}
+              step={SHADOW_STEP}
+              onChange={(v) => setShadow({ left: v })}
+            />
+          </div>
+        )}
+        <SliderField
+          label="Blur (%)"
+          value={block.shadow.blur}
+          min={0}
+          max={100}
+          step={1}
+          onChange={(v) => setShadow({ blur: v })}
+        />
+        <ColorField
+          label="Cor"
+          value={shadowColorDraft}
+          onChange={(v) => setShadow({ color: v })}
+        />
+        <button type="button" className={s.smallBtn} onClick={resetShadow}>
+          Zerar shadow
+        </button>
+      </Section>
+
+
 
       {!isMask && (
         <>
@@ -258,6 +582,7 @@ export function PropertiesPanel({
           </Section>
         </>
       )}
+
 
       <Section title="Cores">
         {!isMask && (
