@@ -1,20 +1,31 @@
 /**
  * Browser implementation of @wails/go/main/GUIApp for psrt-gui-web.
- * PSRT processing runs in WASM; the local connector is only used for local assets.
+ * PSRT processing runs via @psrt/sdk (WASM); connector is used for local assets.
  */
+import {
+  adaptEntriesForWeb as sdkAdaptEntriesForWeb,
+  compileToHtmlPure,
+  compileToSvg,
+  formatDocument,
+  formatPageDocumentJSON,
+  mergePageDocumentPSRT,
+  parse,
+} from '@psrt/sdk';
 import { styleadapter, visualapp } from '@wails/go/models';
+import { extractPageDocument } from '../lib/documentModel';
 import { resolveAssetReference } from '../lib/expandConsts';
 import { isLocalAssetRef } from '../lib/localAssetRef';
 import { fetchAuthenticatedImage } from '../lib/connectorUrl';
 import {
-  wasmAdaptEntriesForWeb,
-  wasmCompilePageHTMLFromDocument,
-  wasmCompilePageSVGFromDocument,
-  wasmFormatDocumentJSON,
-  wasmFormatPageDocumentJSON,
-  wasmMergePageDocumentPSRT,
-  wasmParseDocumentPSRT,
-} from '../lib/wasmClient';
+  createHtmlCompileObservers,
+  type HtmlCompileStepCallback,
+} from '../lib/htmlCompileProgress';
+import {
+  resolveDocumentAssetsForCompile,
+  resolveDocumentJsonForCompile,
+} from '../lib/resolveDocumentAssets';
+import type { PsrtDocument } from '../types/document';
+import type { PsrtVariant } from '@psrt/sdk';
 import { getActiveConsts, isConnectorActive, setActiveConsts } from './connectorConfig';
 import { connectorPostApi } from './http';
 import {
@@ -23,6 +34,98 @@ import {
   downloadSvg,
   pickPsrtFile,
 } from '../services/fileIO';
+
+function encodePreview(data: Uint8Array | string, mime: string): string {
+  const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : data;
+  const chunkSize = 0x8000;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return `data:${mime};base64,${btoa(binary)}`;
+}
+
+async function prepareDocForHtmlCompile(doc: PsrtDocument): Promise<PsrtDocument> {
+  const withConsts: PsrtDocument = {
+    ...doc,
+    consts: { ...(doc.consts ?? {}), ...getActiveConsts() },
+  };
+  return resolveDocumentAssetsForCompile(withConsts);
+}
+
+async function prepareVariantsForHtmlCompile(
+  variants: PsrtVariant[],
+): Promise<PsrtVariant[]> {
+  return Promise.all(
+    variants.map(async (v) => ({
+      label: v.label,
+      doc: await prepareDocForHtmlCompile(v.doc),
+    })),
+  );
+}
+
+function variantBodiesToPsrtVariants(bodies: visualapp.VariantPSRT[]): PsrtVariant[] {
+  return bodies
+    .filter((b) => b.content?.trim())
+    .map((b) => ({
+      label: b.label?.trim() || 'variant',
+      doc: parse(b.content),
+    }));
+}
+
+async function compileHtmlFromDoc(
+  doc: PsrtDocument,
+  options?: {
+    variants?: PsrtVariant[];
+    onStep?: HtmlCompileStepCallback;
+  },
+): Promise<string> {
+  const prepared = await prepareDocForHtmlCompile(doc);
+  const extraVariants = options?.variants ?? [];
+  const preparedVariants = await prepareVariantsForHtmlCompile(extraVariants);
+  return compileToHtmlPure(prepared, {
+    noScript: preparedVariants.length === 0,
+    variants: preparedVariants,
+    observers: createHtmlCompileObservers(options?.onStep),
+  });
+}
+
+/** Compiles one page to HTML (pure JS). Used by preview. */
+export async function compilePageHtmlForWeb(
+  fullDoc: PsrtDocument,
+  pageName: string,
+  onStep?: HtmlCompileStepCallback,
+): Promise<string> {
+  const pageDoc = extractPageDocument(fullDoc, pageName);
+  return compileHtmlFromDoc(pageDoc, { onStep });
+}
+
+/** Downloads HTML for the full document (all pages), optionally with PSRT variants. */
+export async function exportHtmlFromDocument(
+  doc: PsrtDocument,
+  variants: PsrtVariant[] = [],
+  onStep?: HtmlCompileStepCallback,
+): Promise<string> {
+  const html = await compileHtmlFromDoc(doc, { variants, onStep });
+  const name = 'document.html';
+  downloadHtml(name, html);
+  return name;
+}
+
+async function compilePageHtmlRaw(
+  docJSON: string,
+  pageName: string,
+  onStep?: HtmlCompileStepCallback,
+): Promise<string> {
+  return compilePageHtmlForWeb(JSON.parse(docJSON) as PsrtDocument, pageName, onStep);
+}
+
+export type { HtmlCompileStepCallback };
+
+function extractPageDocumentJson(fullDocJSON: string, pageName: string): string {
+  const full = JSON.parse(fullDocJSON) as PsrtDocument;
+  return JSON.stringify(extractPageDocument(full, pageName));
+}
 
 export async function SetWebDocumentConsts(constsJSON: string): Promise<void> {
   try {
@@ -38,7 +141,7 @@ export async function AdaptEntriesForWeb(
   canvasH: number,
   zoom: number,
 ): Promise<Array<styleadapter.WebPreviewStyle>> {
-  const raw = wasmAdaptEntriesForWeb(entriesJSON, canvasW, canvasH, zoom);
+  const raw = sdkAdaptEntriesForWeb(entriesJSON, canvasW, canvasH, zoom);
   return raw.map((r) => styleadapter.WebPreviewStyle.createFrom(r));
 }
 
@@ -101,14 +204,14 @@ export async function GetAssetDataURI(url: string): Promise<string> {
 }
 
 export async function FormatDocumentJSON(docJSON: string): Promise<string> {
-  return wasmFormatDocumentJSON(docJSON);
+  return formatDocument(JSON.parse(docJSON));
 }
 
 export async function FormatPageDocumentJSON(
   docJSON: string,
   pageName: string,
 ): Promise<string> {
-  return wasmFormatPageDocumentJSON(docJSON, pageName);
+  return formatPageDocumentJSON(docJSON, pageName);
 }
 
 export async function MergePageDocumentPSRT(
@@ -116,25 +219,37 @@ export async function MergePageDocumentPSRT(
   pageName: string,
   psrtText: string,
 ): Promise<string> {
-  return wasmMergePageDocumentPSRT(fullDocJSON, pageName, psrtText);
+  const doc = mergePageDocumentPSRT(fullDocJSON, pageName, psrtText);
+  return JSON.stringify(doc);
 }
 
 export async function ParseDocumentPSRT(text: string): Promise<string> {
-  return wasmParseDocumentPSRT(text);
+  return JSON.stringify(parse(text));
 }
 
 export async function CompilePageSVGFromDocument(
   docJSON: string,
-  page: string,
+  pageName: string,
 ): Promise<{ uri: string; usedGoTextFallback: boolean }> {
-  return wasmCompilePageSVGFromDocument(docJSON, page);
+  const pageDocJSON = extractPageDocumentJson(docJSON, pageName);
+  const preparedJSON = await resolveDocumentJsonForCompile(pageDocJSON);
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, 0);
+  });
+  const doc = JSON.parse(preparedJSON);
+  const svg = compileToSvg(doc, pageName, {});
+  return {
+    uri: encodePreview(svg, 'image/svg+xml'),
+    usedGoTextFallback: false,
+  };
 }
 
 export async function CompilePageHTMLFromDocument(
   docJSON: string,
-  page: string,
+  pageName: string,
+  onStep?: HtmlCompileStepCallback,
 ): Promise<string> {
-  return wasmCompilePageHTMLFromDocument(docJSON, page);
+  return compilePageHtmlRaw(docJSON, pageName, onStep);
 }
 
 export async function OpenImageFileDialog(): Promise<string> {
@@ -210,15 +325,12 @@ export async function ExportSVGFromDocument(docJSON: string): Promise<{
 export async function ExportHTMLFromDocument(
   docJSON: string,
   _variantPaths: string[],
-  _variantBodies: visualapp.VariantPSRT[],
+  variantBodies: visualapp.VariantPSRT[],
+  onStep?: HtmlCompileStepCallback,
 ): Promise<string> {
-  const parsed = JSON.parse(docJSON) as { pages?: Array<{ name: string }> };
-  const pageName = parsed.pages?.[0]?.name ?? 'inicio';
-  const uri = await CompilePageHTMLFromDocument(docJSON, pageName);
-  const html = dataUriToText(uri);
-  const name = 'document.html';
-  downloadHtml(name, html);
-  return name;
+  const doc = JSON.parse(docJSON) as PsrtDocument;
+  const variants = variantBodiesToPsrtVariants(variantBodies);
+  return exportHtmlFromDocument(doc, variants, onStep);
 }
 
 export async function RefreshAssetURL(_url: string): Promise<void> {}
