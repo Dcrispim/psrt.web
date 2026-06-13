@@ -2,9 +2,22 @@
   "name": "PSRT Visual Editor",
   "short_name": "PSRT",
   "description": "Editor visual PSRT offline-first",
-  "start_url": "/psrt-gui-web/",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#0f0f14",
   "theme_color": "#0f0f14",
-  "icons": []
+  "icons": [
+    {
+      "src": "assets/icon-small.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/favicon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
 }
