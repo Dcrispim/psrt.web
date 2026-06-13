@@ -1,3 +1,4 @@
+/** @deprecated Use PSRTImage from @psrt/react-image */
 import React, {
   CSSProperties,
   type HTMLAttributes,

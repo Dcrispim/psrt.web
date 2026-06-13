@@ -1,66 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
-import ImagePsrt from './ImagePsrt';
-import { TextBlock } from './TextBlock';
-import { MaskBlock } from './MaskBlock';
+import { useCallback, useRef, type CSSProperties, type PointerEvent } from 'react';
+import { PSRTImage, type InteractionBlockRenderProps } from '@psrt/react-image';
+import '@psrt/react-image/style.css';
+import { GetAssetDataURI } from '@wails/go/main/GUIApp';
 import { useEditor } from '../context/useEditor';
 import { clientPointToImagePercent } from '../lib/imagePointerCoords';
-import { resolveAssetReference } from '../lib/expandConsts';
-import { isLocalAssetRef } from '../lib/localAssetRef';
-import { stateToPsrtSection } from '../lib/stateToPsrtSection';
-import { useAdaptedEntryStyles } from '../lib/useAdaptedEntryStyles';
-import { usePageImageDataUri } from '../lib/usePageImageDataUri';
 import { NOT_FOUND_IMAGE_SRC } from '../lib/notFoundImage';
-import type { PSRTEntry } from '../types/types';
-import { visualapp } from '@wails/go/models';
+import { TextBlock } from './TextBlock';
+import { MaskBlock } from './MaskBlock';
 import '../styles/image-psrt.css';
-
-function textToOverlayEntry(
-  text: visualapp.TextDetail,
-  content: string,
-): PSRTEntry {
-  let parsedStyle: Record<string, unknown> = {};
-  try {
-    parsedStyle = JSON.parse(text.style || '{}') as Record<string, unknown>;
-  } catch {
-    parsedStyle = {};
-  }
-  return {
-    index: text.index,
-    x: text.x,
-    y: text.y,
-    width: text.width,
-    size: text.textSize,
-    text: content,
-    style: parsedStyle,
-    styleRaw: text.style ?? '{}',
-  };
-}
-
-function maskToOverlayEntry(mask: visualapp.MaskDetail): PSRTEntry {
-  let parsedStyle: Record<string, unknown> = {};
-  try {
-    parsedStyle = JSON.parse(mask.style || '{}') as Record<string, unknown>;
-  } catch {
-    parsedStyle = {};
-  }
-  parsedStyle.height = `${mask.height}%`;
-  return {
-    index: mask.index,
-    x: mask.x,
-    y: mask.y,
-    width: mask.width,
-    size: 0,
-    maskHeight: mask.height,
-    text: '',
-    style: parsedStyle,
-    styleRaw: mask.style ?? '{}',
-  };
-}
 
 export function WebPreview({ variant = 'footer' }: { variant?: 'footer' | 'canvas' }) {
   const {
+    document,
     state,
-    pageImageUri,
     selectText,
     clearMultiSelect,
     multiSelected,
@@ -75,8 +27,12 @@ export function WebPreview({ variant = 'footer' }: { variant?: 'footer' | 'canva
   const stageRef = useRef<HTMLDivElement>(null);
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const middleClickRef = useRef({ time: 0, x: 0, y: 0 });
-  const [imageSize, setImageSize] = useState<{ w: number; h: number } | null>(null);
   const isCanvas = variant === 'canvas';
+
+  const resolveAssetUrl = useCallback(async (url: string) => {
+    const uri = await GetAssetDataURI(url);
+    return uri || NOT_FOUND_IMAGE_SRC;
+  }, []);
 
   const placeSelectedTextAtClient = useCallback(
     (clientX: number, clientY: number) => {
@@ -126,168 +82,123 @@ export function WebPreview({ variant = 'footer' }: { variant?: 'footer' | 'canva
     [isCanvas, placeSelectedTextAtClient],
   );
 
-  const imageUrl = state?.page?.imageUrl;
-  const docConsts = state?.consts;
-  const resolvedImageSrc = usePageImageDataUri(imageUrl, pageImageUri, docConsts);
-  const imageSrc =
-    resolvedImageSrc ??
-    pageImageUri ??
-    (imageUrl && /^https?:\/\//i.test(imageUrl) ? imageUrl : null) ??
-    (imageUrl ? NOT_FOUND_IMAGE_SRC : null);
-
-  const pageKey = state?.activePage ?? '';
-  const imageKey = state?.page?.imageUrl ?? '';
-
-  const section = useMemo(() => {
-    if (!state) return null;
-    const sec = stateToPsrtSection(state, imageSrc);
-    if (!sec) return null;
-    if (!isCanvas || !sec.entries?.length) return sec;
-    return {
-      ...sec,
-      entries: sec.entries.map((entry) => ({
-        ...entry,
-        text: getTextDisplayContent(entry.index ?? 0, entry.text ?? ''),
-      })),
-    };
-  }, [state, imageSrc, isCanvas, getTextDisplayContent]);
-
-  useEffect(() => {
-    setImageSize(null);
-  }, [pageKey, imageKey]);
-
+  const activePage = state?.activePage ?? '';
+  const selectedIndex = state?.selectedIndex ?? -1;
   const texts = state?.texts ?? [];
   const masks = state?.masks ?? [];
-  const hasOverlay = texts.length > 0 || masks.length > 0;
 
-  /** Higher index = painted later = on top for hit-test and z-order. */
-  const overlayBlocks = useMemo(() => {
-    const items: Array<
-      | { kind: 'text'; data: (typeof texts)[number] }
-      | { kind: 'mask'; data: (typeof masks)[number] }
-    > = [];
-    for (const t of texts) items.push({ kind: 'text', data: t });
-    for (const m of masks) items.push({ kind: 'mask', data: m });
-    items.sort((a, b) => a.data.index - b.data.index);
-    return items;
-  }, [texts, masks]);
-
-  const overlayEntries = useMemo(() => {
-    if (!isCanvas) return [];
-    return overlayBlocks.map((item) =>
-      item.kind === 'text'
-        ? textToOverlayEntry(
-            item.data,
-            getTextDisplayContent(item.data.index, item.data.content ?? ''),
-          )
-        : maskToOverlayEntry(item.data),
-    );
-  }, [isCanvas, overlayBlocks, getTextDisplayContent]);
-
-  const adaptedByIndex = useAdaptedEntryStyles(
-    overlayEntries,
-    imageSize?.w ?? 0,
-    imageSize?.h ?? 0,
-    webZoom,
+  const textByIndex = useCallback(
+    (index: number) => texts.find((t) => t.index === index),
+    [texts],
   );
 
-  if (!section) {
+  const maskByIndex = useCallback(
+    (index: number) => masks.find((m) => m.index === index),
+    [masks],
+  );
+
+  const isSelected = useCallback(
+    (id: string | number) => {
+      const idx = typeof id === 'number' ? id : Number.parseInt(String(id), 10);
+      return selectedIndex === idx || multiSelected.has(idx);
+    },
+    [selectedIndex, multiSelected],
+  );
+
+  const applyEditorStyles = useCallback(
+    (blockId: string | number): CSSProperties => {
+      if (!isSelected(blockId)) return {}
+      return {
+        // border: `${webZoom}px dashed #1db954`,
+        // boxShadow: `0 0 ${4 * webZoom}px #1db954`,
+      }
+    },
+    [isSelected, webZoom],
+  );
+
+  const renderInteractionBlock = useCallback(
+    ({ entry, adaptedStyles, imageWidth, imageHeight, zoom }: InteractionBlockRenderProps) => {
+      const mask = maskByIndex(entry.index);
+      if (mask) {
+        return (
+          <MaskBlock
+            key={`m-${entry.index}`}
+            mask={mask}
+            isSelected={isSelected(entry.index)}
+            stageRef={stageRef}
+            interactionOnly
+            imageWidth={imageWidth}
+            imageHeight={imageHeight}
+            zoom={zoom}
+            adaptedStyles={adaptedStyles}
+          />
+        );
+      }
+
+      const text = textByIndex(entry.index);
+      if (!text) return null;
+
+      return (
+        <TextBlock
+          key={`t-${entry.index}`}
+          text={text}
+          displayContent={getTextDisplayContent(entry.index, text.content ?? '')}
+          isSelected={isSelected(entry.index)}
+          stageRef={stageRef}
+          interactionOnly
+          imageWidth={imageWidth}
+          imageHeight={imageHeight}
+          zoom={zoom}
+          adaptedStyles={adaptedStyles}
+        />
+      );
+    },
+    [getTextDisplayContent, isSelected, maskByIndex, textByIndex],
+  );
+
+  if (!document || !activePage) {
     return <div className="preview-web-empty">Open a page to preview</div>;
   }
 
-  const resolvedImageUrl = imageUrl
-    ? resolveAssetReference(imageUrl, docConsts)
-    : undefined;
-
-  const needsAssetResolve =
-    resolvedImageUrl &&
-    !imageSrc &&
-    !isLocalAssetRef(resolvedImageUrl) &&
-    !/^https?:\/\//i.test(resolvedImageUrl) &&
-    !resolvedImageUrl.startsWith('data:') &&
-    !resolvedImageUrl.startsWith('psrt-asset://');
-
-  if (needsAssetResolve) {
-    return <div className="preview-web-empty">Carregando imagem…</div>;
-  }
-
-  const selectedIndex = state?.selectedIndex ?? -1;
-
   const rootClass =
     variant === 'canvas' ? 'preview-web preview-web-canvas' : 'preview-web';
+
+  const showInteractionOverlay = isCanvas && webTextsVisible && (texts.length > 0 || masks.length > 0);
 
   return (
     <div className={rootClass}>
       <div
         className={isCanvas ? 'canvas-editor-stage' : undefined}
+        style={
+          isCanvas
+            ? ({ '--editor-ui-zoom': String(webZoom) } as CSSProperties)
+            : undefined
+        }
         onPointerDownCapture={isCanvas ? onMiddleDoubleClickCapture : undefined}
       >
-        <ImagePsrt
-          key={`${pageKey}::${imageKey}::${imageSrc ?? 'loading'}`}
-          pageData={section}
-          alt={section.title}
-          pageLink={imageSrc ?? undefined}
-          editor={isCanvas}
-          hideSub={isCanvas && !webTextsVisible}
-          parentZoom={webZoom}
+        <PSRTImage
+          psrt={document}
+          pageName={activePage}
+          scale={webZoom}
+          enableEditor={isCanvas && !showInteractionOverlay}
+          showTexts={!isCanvas || webTextsVisible}
           fixedReferenceSize={isCanvas}
-          getSize={({ w, h }) => {
-            if (w && h) setImageSize({ w, h });
-          }}
-          selectedIndex={
-            isCanvas ? undefined : selectedIndex >= 0 ? selectedIndex : undefined
-          }
-          onClickEntry={isCanvas ? undefined : (index) => selectText(index)}
-          consts={docConsts}
+          fallbackImage={NOT_FOUND_IMAGE_SRC}
+          resolveAssetUrl={resolveAssetUrl}
+          getBlockContent={getTextDisplayContent}
+          applyEditorStyles={isCanvas ? applyEditorStyles : undefined}
+          onSelectBlock={!isCanvas ? selectText : undefined}
           imageContainerRef={imageContainerRef}
+          interactionOverlayRef={showInteractionOverlay ? stageRef : undefined}
+          onInteractionOverlayPointerDown={
+            showInteractionOverlay
+              ? (e) => {
+                if (e.target === e.currentTarget) clearMultiSelect();
+              }
+              : undefined
+          }
+          renderInteractionBlock={showInteractionOverlay ? renderInteractionBlock : undefined}
         />
-        {isCanvas && webTextsVisible && hasOverlay ? (
-          <div
-            ref={stageRef}
-            className="canvas-text-overlay"
-            onPointerDown={(e) => {
-              if (e.target === e.currentTarget) clearMultiSelect();
-            }}
-          >
-            {overlayBlocks.map((item) =>
-              item.kind === 'text' ? (
-                <TextBlock
-                  key={`t-${item.data.index}`}
-                  text={item.data}
-                  displayContent={getTextDisplayContent(
-                    item.data.index,
-                    item.data.content ?? '',
-                  )}
-                  isSelected={
-                    selectedIndex === item.data.index ||
-                    multiSelected.has(item.data.index)
-                  }
-                  stageRef={stageRef}
-                  interactionOnly
-                  imageWidth={imageSize?.w ?? 0}
-                  imageHeight={imageSize?.h ?? 0}
-                  zoom={webZoom}
-                  adaptedStyles={adaptedByIndex.get(item.data.index)}
-                />
-              ) : (
-                <MaskBlock
-                  key={`m-${item.data.index}`}
-                  mask={item.data}
-                  isSelected={
-                    selectedIndex === item.data.index ||
-                    multiSelected.has(item.data.index)
-                  }
-                  stageRef={stageRef}
-                  interactionOnly
-                  imageWidth={imageSize?.w ?? 0}
-                  imageHeight={imageSize?.h ?? 0}
-                  zoom={webZoom}
-                  adaptedStyles={adaptedByIndex.get(item.data.index)}
-                />
-              ),
-            )}
-          </div>
-        ) : null}
       </div>
     </div>
   );

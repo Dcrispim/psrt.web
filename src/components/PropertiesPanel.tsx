@@ -1,12 +1,7 @@
-import { useEditor } from '../context/useEditor';
 import { Sidebar as EditorSidebar } from './editor/Sidebar';
 import { useTextEditorSidebar } from '../hooks/useTextEditorSidebar';
 import { useResizablePanelWidth } from '../hooks/useResizablePanelWidth';
-import { PageProperties } from './PageProperties';
-import { PsrtSourceEditor } from './PsrtSourceEditor';
-import { useState, type ReactNode } from 'react';
-
-type PanelMode = 'properties' | 'source';
+import { type ReactNode } from 'react';
 
 const PANEL_STORAGE_KEY = 'psrt-properties-panel-width';
 const PANEL_MIN_WIDTH = 280;
@@ -53,51 +48,14 @@ function PropertiesAside({
 }
 
 export function PropertiesPanel() {
-  const { state, previewTab } = useEditor();
-  const [mode, setMode] = useState<PanelMode>('properties');
-  const isTextMode = previewTab === 'web';
   const textSidebar = useTextEditorSidebar();
 
-  if (isTextMode) {
-    return (
-      <PropertiesAside className="properties--editor">
-        {textSidebar ? (
-          <EditorSidebar {...textSidebar} />
-        ) : (
-          <p className="properties-empty">Selecione uma página</p>
-        )}
-      </PropertiesAside>
-    );
-  }
-
   return (
-    <PropertiesAside>
-      <div className="properties-tabs" role="tablist">
-        <button
-          type="button"
-          role="tab"
-          className={mode === 'properties' ? 'active' : ''}
-          aria-selected={mode === 'properties'}
-          onClick={() => setMode('properties')}
-        >
-          Propriedades
-        </button>
-        <button
-          type="button"
-          role="tab"
-          className={mode === 'source' ? 'active' : ''}
-          aria-selected={mode === 'source'}
-          onClick={() => setMode('source')}
-        >
-          PSRT
-        </button>
-      </div>
-      {mode === 'properties' ? (
-        <div className="properties-body">
-          {state?.page ? <PageProperties /> : null}
-        </div>
+    <PropertiesAside className="properties--editor">
+      {textSidebar ? (
+        <EditorSidebar {...textSidebar} />
       ) : (
-        <PsrtSourceEditor active={mode === 'source'} />
+        <p className="properties-empty">Selecione uma página</p>
       )}
     </PropertiesAside>
   );

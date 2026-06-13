@@ -8,9 +8,8 @@ export function Toolbar() {
     saveAs,
     undo,
     redo,
-    compileSvg,
-    compileHtml,
-    setAutoCompile,
+    saveAsSvg,
+    saveAsHtml,
     showToast,
   } = useEditor();
 
@@ -51,20 +50,12 @@ export function Toolbar() {
         Redo
       </button>
       <span className="sep" />
-      <button type="button" onClick={() => compileSvg().catch((e) => showToast(String(e)))}>
-        Compile SVG
+      <button type="button" onClick={() => saveAsSvg().catch((e) => showToast(String(e)))}>
+        Download SVG
       </button>
-      <button type="button" onClick={() => compileHtml().catch((e) => showToast(String(e)))}>
-        Compile HTML
+      <button type="button" onClick={() => saveAsHtml([]).catch((e) => showToast(String(e)))}>
+        Download HTML
       </button>
-      <label>
-        <input
-          type="checkbox"
-          defaultChecked={false}
-          onChange={(e) => setAutoCompile(e.target.checked)}
-        />{' '}
-        Auto compile
-      </label>
     </header>
   );
 }
