@@ -1,12 +1,26 @@
 import path from 'node:path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { VitePWA } from 'vite-plugin-pwa';
 
 const repoBase = '/psrt-gui-web/';
+const base = process.env.GITHUB_PAGES === 'true' ? repoBase : '/';
 
 export default defineConfig({
-  base: process.env.GITHUB_PAGES === 'true' ? repoBase : '/',
-  plugins: [react()],
+  base,
+  plugins: [
+    react(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      manifest: false,
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,svg,webmanifest,woff2}'],
+        navigateFallback: 'index.html',
+        cleanupOutdatedCaches: true,
+        maximumFileSizeToCacheInBytes: 30 * 1024 * 1024,
+      },
+    }),
+  ],
   resolve: {
     alias: {
       '@wails/go/main/GUIApp': path.resolve(__dirname, 'src/api/connectorClient.ts'),
@@ -22,6 +36,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    target: 'es2022',
   },
   publicDir: 'public',
 });

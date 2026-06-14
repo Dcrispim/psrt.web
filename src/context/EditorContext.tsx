@@ -34,6 +34,7 @@ import {
   removePageFromDocument,
   removeTextFromDocument,
 } from '../lib/documentModel';
+import { DEFAULT_PAGE_BG_URL } from '../lib/defaultPageBackground';
 import { loadHtmlVariantsFromFiles } from '../lib/prepareHtmlVariants';
 import {
   ASSETS_PHASE_PROGRESS,
@@ -487,7 +488,7 @@ export function EditorProvider({
       const next = addPageToDocument(
         document,
         name,
-        `https://picsum.photos/seed/${encodeURIComponent(name)}/1080/1920`,
+        DEFAULT_PAGE_BG_URL,
         '{}',
       );
       replaceDocument(next);

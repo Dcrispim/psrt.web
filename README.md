@@ -34,6 +34,43 @@ npm run build
 npm run preview
 ```
 
+## Offline / PWA
+
+O editor funciona offline após a **primeira visita online** (ou após servir um build local). Um Service Worker cacheia JS, CSS e assets estáticos; rascunhos continuam no IndexedDB.
+
+### Instalar como app
+
+- **Chrome / Edge:** ícone "Instalar app" na barra de endereço (ou menu ⋮ → Instalar)
+- **iOS Safari:** Compartilhar → Adicionar à Tela de Início
+
+O manifest está em `public/manifest.webmanifest` (`display: standalone`).
+
+### Testar offline
+
+1. `npm run build && npm run preview`
+2. Abra a URL do preview no browser e aguarde o carregamento completo
+3. DevTools → **Network** → marque **Offline**
+4. Recarregue a página (F5) — o app deve abrir normalmente
+
+Para simular o deploy do GitHub Pages:
+
+```powershell
+$env:GITHUB_PAGES='true'; npm run build; npx vite preview --base /psrt-gui-web/
+```
+
+### Limitações offline
+
+| Recurso | Offline? |
+|---------|----------|
+| Editar / salvar PSRT (upload + download) | Sim |
+| Rascunho automático (IndexedDB) | Sim |
+| Nova página (placeholder local) | Sim |
+| Google Fonts (`fonts.googleapis.com`) | Não na 1ª carga |
+| Imagens `https://` no documento | Não na 1ª carga |
+| Conector local no GitHub Pages | Não (mixed content HTTPS → localhost) |
+
+Um banner amarelo aparece quando `navigator.onLine` é falso — distinto do banner vermelho do conector local.
+
 ## Demo online (GitHub Pages)
 
 Editor publicado em: **https://dcrispim.github.io/psrt-gui-web/**

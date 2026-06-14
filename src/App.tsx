@@ -5,10 +5,12 @@ import { PropertiesPanel } from './components/PropertiesPanel';
 import { Toast } from './components/Toast';
 import { HtmlExportOverlay } from './components/HtmlExportOverlay';
 import { ConnectorBanner } from './components/ConnectorBanner';
+import { OfflineBanner } from './components/OfflineBanner';
 
 export function App() {
   return (
     <>
+      <OfflineBanner />
       <ConnectorBanner />
       <Header />
       <main className="workspace">
