@@ -3,6 +3,7 @@ import { getActiveConsts, isConnectorActive } from '../api/connectorConfig';
 import { resolveAssetReference } from './expandConsts';
 import { isLocalAssetRef } from './localAssetRef';
 import { NOT_FOUND_IMAGE_SRC } from './notFoundImage';
+import { prepareDocumentFontsForCompile } from './documentFonts';
 import type { PsrtDocument } from '../types/document';
 
 function isHttpUrl(value: string): boolean {
@@ -36,7 +37,6 @@ function collectRawAssetRefs(doc: PsrtDocument): string[] {
     for (const text of page.texts ?? []) add(text.imageRef);
     for (const mask of page.masks ?? []) add(mask.imageRef);
   }
-  for (const font of doc.fonts ?? []) add(font);
 
   return out;
 }
@@ -123,7 +123,6 @@ function applyResolvedRefs(doc: PsrtDocument, resolved: Map<string, string>): Ps
         imageRef: replaceRef(mask.imageRef, resolved),
       })),
     })),
-    fonts: (doc.fonts ?? []).map((font) => replaceRef(font, resolved) ?? font),
   };
   return next;
 }
@@ -142,7 +141,7 @@ async function ensurePageImagesForCompile(
   };
 }
 
-/** Embeds page/text/mask/font assets as data URIs before HTML/SVG compile. */
+/** Embeds page/text/mask assets as data URIs before HTML/SVG compile. Fonts are handled separately. */
 export async function resolveDocumentAssetsForCompile(
   doc: PsrtDocument,
 ): Promise<PsrtDocument> {
@@ -161,8 +160,18 @@ export async function resolveDocumentAssetsForCompile(
   return ensurePageImagesForCompile(withRefs, notFound);
 }
 
+/** Resolves page assets and embeds fonts for HTML/SVG compile. */
+export async function resolveDocumentForCompile(doc: PsrtDocument): Promise<{
+  doc: PsrtDocument;
+  fontEntries: Awaited<ReturnType<typeof prepareDocumentFontsForCompile>>['entries'];
+}> {
+  const withAssets = await resolveDocumentAssetsForCompile(doc);
+  const { doc: withFonts, entries } = await prepareDocumentFontsForCompile(withAssets);
+  return { doc: withFonts, fontEntries: entries };
+}
+
 export async function resolveDocumentJsonForCompile(docJSON: string): Promise<string> {
   const doc = JSON.parse(docJSON) as PsrtDocument;
-  const prepared = await resolveDocumentAssetsForCompile(doc);
+  const { doc: prepared } = await resolveDocumentForCompile(doc);
   return JSON.stringify(prepared);
 }

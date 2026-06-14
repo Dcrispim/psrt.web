@@ -3,6 +3,9 @@ import type { PsrtDocument, PsrtMask, PsrtPage, PsrtText } from '../types/docume
 import { snapCoord } from './applyStyle';
 import { resolveMaskHeightPercent, heightPercentFromStyleObject } from './maskHeight';
 import { styleStringValue } from './parseStyle';
+import { isFontBinaryDataUri } from './documentFonts';
+import { removeFontLabel, sanitizeFontLabel, setFontLabel } from './fontLabels';
+import { normalizeDocumentFontUrl } from './googleFontsUrl';
 
 function applyStyleSet(
   obj: Record<string, unknown>,
@@ -42,6 +45,7 @@ export function extractPageDocument(fullDoc: PsrtDocument, pageName: string): Ps
     pages: [page],
     fonts: fullDoc.fonts ?? [],
     consts: fullDoc.consts ?? {},
+    fontLabels: fullDoc.fontLabels ? { ...fullDoc.fontLabels } : undefined,
   };
 }
 
@@ -388,16 +392,46 @@ export function movePageInDocument(
   return next;
 }
 
-export function addFontToDocument(doc: PsrtDocument, url: string): PsrtDocument {
+export function addFontToDocument(
+  doc: PsrtDocument,
+  url: string,
+  label?: string,
+): PsrtDocument {
   const next = cloneDocument(doc);
-  if (!next.fonts.includes(url)) next.fonts.push(url);
+  const trimmed = url.trim();
+  const stored = isFontBinaryDataUri(trimmed) ? trimmed : normalizeDocumentFontUrl(trimmed);
+  const isDuplicate = next.fonts.some(
+    (f) => f === stored || f === trimmed || normalizeDocumentFontUrl(f) === stored,
+  );
+  if (!isDuplicate) next.fonts.push(stored);
+
+  if (label?.trim()) {
+    return setFontLabel(next, stored, sanitizeFontLabel(label));
+  }
   return next;
+}
+
+export function renameFontLabelInDocument(
+  doc: PsrtDocument,
+  url: string,
+  label: string,
+): PsrtDocument {
+  const trimmed = url.trim();
+  const key =
+    doc.fonts.find(
+      (f) => f === trimmed || normalizeDocumentFontUrl(f) === normalizeDocumentFontUrl(trimmed),
+    ) ?? trimmed;
+  return setFontLabel(doc, key, label);
 }
 
 export function removeFontFromDocument(doc: PsrtDocument, url: string): PsrtDocument {
   const next = cloneDocument(doc);
-  next.fonts = next.fonts.filter((f) => f !== url);
-  return next;
+  const normalized = normalizeDocumentFontUrl(url);
+  const removed = next.fonts.filter(
+    (f) => f !== url && normalizeDocumentFontUrl(f) !== normalized,
+  );
+  next.fonts = removed;
+  return removeFontLabel(next, url);
 }
 
 export function addConstToDocument(

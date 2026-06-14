@@ -14,7 +14,7 @@ import type {
   TextTransform,
 } from '../components/editor/types';
 import { ZERO_BLUR, ZERO_BORDER_RADIUS, ZERO_SHADOW } from '../components/editor/types';
-import { parseGoogleFontsFamilies } from './googleFontsUrl';
+import { familyNamesFromFontBasename, fontBasenameFromRef, parseGoogleFontsFamilies } from './googleFontsUrl';
 import { parseStyle, styleStringValue, toColorInput } from './parseStyle';
 import { resolveMaskHeightPercent } from './maskHeight';
 import type { PsrtDocument } from '../types/document';
@@ -155,7 +155,25 @@ function parseWeight(style: Record<string, unknown>): { weight: number; bold: bo
   if (!raw) return { weight: 400, bold: false };
   const n = parseInt(raw, 10);
   if (!Number.isFinite(n)) return { weight: 400, bold: false };
-  return { weight: n >= 700 ? n : n, bold: n >= 700 };
+  return { weight: n, bold: n >= 700 };
+}
+
+export function isFontWeightBold(weight: number): boolean {
+  return weight >= 700;
+}
+
+/** Keeps `weight` and `bold` aligned: bold is true when weight ≥ 700. */
+export function fontWeightBoldPair(weight: number): Pick<TextBlock['font'], 'weight' | 'bold'> {
+  const clamped = Math.min(900, Math.max(100, weight));
+  return { weight: clamped, bold: isFontWeightBold(clamped) };
+}
+
+/** Bold shortcut: 700 when off → on; ≥700 when on → 400. */
+export function toggleFontWeightBold(font: TextBlock['font']): TextBlock['font'] {
+  if (isFontWeightBold(font.weight)) {
+    return { ...font, weight: 400, bold: false };
+  }
+  return { ...font, weight: 700, bold: true };
 }
 
 function parseDecoration(style: Record<string, unknown>): { underline: boolean; strike: boolean } {
@@ -518,19 +536,18 @@ function blockName(text: visualapp.TextDetail): string {
 }
 
 export function fontUrlLabel(url: string): string {
-  try {
-    const path = new URL(url).pathname;
-    const file = path.split('/').pop() ?? url;
-    const base = file.replace(/\.(woff2?|ttf|otf)$/i, '');
-    const match = base.match(/([a-z]+)-latin/i);
-    if (match) return match[1].charAt(0).toUpperCase() + match[1].slice(1);
-    return base.slice(0, 24) || url;
-  } catch {
-    return url.slice(0, 24);
-  }
+  const families = parseGoogleFontsFamilies(url);
+  if (families[0]) return families[0];
+  const base = fontBasenameFromRef(url);
+  const fromBase = familyNamesFromFontBasename(base);
+  if (fromBase[0]) return fromBase[0];
+  return base.slice(0, 24) || url.slice(0, 24);
 }
 
-export function buildFontSelectOptions(fontUrls: string[]): { value: string; label: string }[] {
+export function buildFontSelectOptions(
+  fontUrls: string[],
+  fontLabels?: Record<string, string>,
+): { value: string; label: string }[] {
   const seen = new Set<string>();
   const options: { value: string; label: string }[] = [];
   for (const f of DEFAULT_FONT_FAMILIES) {
@@ -540,21 +557,24 @@ export function buildFontSelectOptions(fontUrls: string[]): { value: string; lab
     }
   }
   for (const url of fontUrls) {
+    const custom = fontLabels?.[url];
     const googleFamilies = parseGoogleFontsFamilies(url);
     if (googleFamilies.length > 0) {
       for (const family of googleFamilies) {
+        const label = custom && custom !== family ? `${custom} (${family})` : `${family} (Google)`;
         if (!seen.has(family)) {
           seen.add(family);
-          options.push({ value: family, label: `${family} (Google)` });
+          options.push({ value: family, label });
         }
       }
       continue;
     }
-    const label = fontUrlLabel(url);
-    const value = label;
+    const detected = fontUrlLabel(url);
+    const value = custom ?? detected;
+    const label = custom ? custom : `${detected} (font)`;
     if (!seen.has(value)) {
       seen.add(value);
-      options.push({ value, label: `${label} (font)` });
+      options.push({ value, label });
     }
   }
   return options;
@@ -610,7 +630,7 @@ function sharedStyleToBlockFields(
     backgroundSet: hasBackground,
     font: {
       family: str(style, 'font-family', 'fontFamily') || 'Inter',
-      weight: bold ? Math.max(weight, 700) : weight < 700 ? weight : 400,
+      weight,
       size: fontSizePx,
       sizeOverride: hasFontSize,
       lineHeight: num(style, 'line-height', 1.4),
@@ -660,8 +680,7 @@ export function styleEntriesFromBlock(block: TextBlock): Record<string, string> 
   if (block.colorSet) out.color = block.color;
   if (block.backgroundSet) out.background = block.background;
 
-  const w = block.font.bold ? 700 : block.font.weight;
-  out['font-weight'] = String(w);
+  out['font-weight'] = String(block.font.weight);
 
   if (block.font.sizeOverride && block.font.size > 0) {
     out['font-size'] = `${block.font.size}px`;
@@ -982,14 +1001,11 @@ function appendStructuralStylePatch(
     styleSet['font-size'] = `${next.font.size}px`;
   }
 
-  if (prev.font.bold !== next.font.bold || prev.font.weight !== next.font.weight) {
-    if (next.font.bold) {
-      styleSet['font-weight'] = '700';
+  if (prev.font.weight !== next.font.weight) {
+    if (next.font.weight !== 400) {
+      styleSet['font-weight'] = String(next.font.weight);
     } else {
       styleRemove.push('font-weight', 'fontWeight', 'fw');
-      if (next.font.weight !== 400) {
-        styleSet['font-weight'] = String(next.font.weight);
-      }
     }
   }
 
