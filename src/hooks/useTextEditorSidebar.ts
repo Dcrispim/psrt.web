@@ -58,8 +58,8 @@ export function useTextEditorSidebar(): EditorSidebarProps | null {
   const activeBlock = blocks.find((b) => b.id === activeId);
 
   const fontOptions = useMemo(
-    () => buildFontSelectOptions(state?.fonts ?? []),
-    [state?.fonts],
+    () => buildFontSelectOptions(state?.fonts ?? [], document?.fontLabels),
+    [state?.fonts, document?.fontLabels],
   );
 
   const contentTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
