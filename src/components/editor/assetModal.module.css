@@ -268,3 +268,114 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+.dialogWide {
+  max-width: 620px;
+}
+
+.emptyState {
+  margin: 0;
+  padding: 20px 12px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.constListWrap {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+
+.constTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.constTable th {
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  background: var(--surface-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.constTable td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.constTable tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.constTable tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.constToken {
+  font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+  font-size: 11px;
+  color: #86efac;
+}
+
+.constValue {
+  display: block;
+  font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+  font-size: 11px;
+  color: #d4d4d8;
+  word-break: break-all;
+}
+
+.constTable td:last-child {
+  width: 36px;
+  text-align: right;
+}
+
+.rowRemove {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.rowRemove:hover {
+  background: rgba(248, 113, 113, 0.12);
+  color: var(--danger);
+}
+
+.addNew {
+  align-self: flex-start;
+  background: transparent;
+  border: 1px dashed var(--border-strong);
+  color: var(--text);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.addNew:hover {
+  border-color: var(--accent);
+  color: #86efac;
+  background: rgba(29, 185, 84, 0.08);
+}

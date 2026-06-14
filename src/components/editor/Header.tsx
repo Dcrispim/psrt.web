@@ -28,9 +28,12 @@ export function Header() {
     pageMoveRef,
     setPageMoveRef,
     addConst,
+    removeConst,
     addFont,
     showToast,
     savingHtml,
+    compileHtml,
+    previewTab,
   } = useEditor();
   const { status } = useConnector();
   const { confirm, prompt } = useAlertModal();
@@ -42,7 +45,7 @@ export function Header() {
   const pages = state?.pages ?? [];
   const activePage = state?.activePage ?? '';
   const hasDoc = Boolean(editorDoc);
-  const existingConstNames = Object.keys(state?.consts ?? {});
+  const documentConsts = state?.consts ?? {};
   const existingFontUrls = state?.fonts ?? [];
 
   const onKey = useCallback(
@@ -236,17 +239,19 @@ export function Header() {
             type="button"
             className={s.segBtn}
             title="Download SVG"
-            disabled={!hasDoc}
+            // TODO: Implement js-sdk export svg
+            disabled={true}
             onClick={() => saveAsSvg().catch((err) => showToast(String(err)))}
           >
             <Icon name="svg" /> SVG
           </button>
           <button
             type="button"
-            className={s.segBtn}
-            title="Download HTML"
-            disabled={!hasDoc}
-            onClick={() => saveAsHtml([]).catch((err) => showToast(String(err)))}
+            className={`${s.segBtn}${previewTab === 'html' ? ` ${s.segBtnActive}` : ''}`}
+            title="Preview HTML da página"
+            aria-pressed={previewTab === 'html'}
+            disabled={!hasDoc || savingHtml}
+            onClick={() => compileHtml().catch((err) => showToast(String(err)))}
           >
             <Icon name="html" /> HTML
           </button>
@@ -290,7 +295,7 @@ export function Header() {
           <button
             type="button"
             className={s.btn}
-            title="Adicionar constante ($CONSTS)"
+            title="Constantes ($CONSTS)"
             disabled={!hasDoc}
             onClick={() => setConstModalOpen(true)}
           >
@@ -365,11 +370,14 @@ export function Header() {
       />
       <AddConstModal
         open={constModalOpen}
-        existingNames={existingConstNames}
+        consts={documentConsts}
         onAdd={(name, value) => {
           addConst(name, value);
-          setConstModalOpen(false);
           showToast(`Constante @${name}@ adicionada`);
+        }}
+        onRemove={(name) => {
+          removeConst(name);
+          showToast(`Constante @${name}@ removida`);
         }}
         onCancel={() => setConstModalOpen(false)}
       />
