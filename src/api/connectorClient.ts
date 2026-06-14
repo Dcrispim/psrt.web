@@ -4,7 +4,7 @@
  */
 import {
   adaptEntriesForWeb as sdkAdaptEntriesForWeb,
-  compileToHtmlPure,
+  compileToHtmlPureAsync,
   compileToSvg,
   formatDocument,
   formatPageDocumentJSON,
@@ -21,9 +21,14 @@ import {
   type HtmlCompileStepCallback,
 } from '../lib/htmlCompileProgress';
 import {
-  resolveDocumentAssetsForCompile,
-  resolveDocumentJsonForCompile,
+  patchCompiledHtmlFonts,
+  patchCompiledSvgFonts,
+  prepareDocumentFontsForCompile,
+} from '../lib/documentFonts';
+import {
+  resolveDocumentForCompile,
 } from '../lib/resolveDocumentAssets';
+import { readFontFileAsDataUri } from '../lib/fontFileDataUri';
 import type { PsrtDocument } from '../types/document';
 import type { PsrtVariant } from '@psrt/sdk';
 import { getActiveConsts, isConnectorActive, setActiveConsts } from './connectorConfig';
@@ -45,22 +50,25 @@ function encodePreview(data: Uint8Array | string, mime: string): string {
   return `data:${mime};base64,${btoa(binary)}`;
 }
 
-async function prepareDocForHtmlCompile(doc: PsrtDocument): Promise<PsrtDocument> {
+async function prepareDocForHtmlCompile(doc: PsrtDocument): Promise<{
+  doc: PsrtDocument;
+  fontEntries: Awaited<ReturnType<typeof prepareDocumentFontsForCompile>>['entries'];
+}> {
   const withConsts: PsrtDocument = {
     ...doc,
     consts: { ...(doc.consts ?? {}), ...getActiveConsts() },
   };
-  return resolveDocumentAssetsForCompile(withConsts);
+  return resolveDocumentForCompile(withConsts);
 }
 
 async function prepareVariantsForHtmlCompile(
   variants: PsrtVariant[],
 ): Promise<PsrtVariant[]> {
   return Promise.all(
-    variants.map(async (v) => ({
-      label: v.label,
-      doc: await prepareDocForHtmlCompile(v.doc),
-    })),
+    variants.map(async (v) => {
+      const { doc } = await prepareDocForHtmlCompile(v.doc);
+      return { label: v.label, doc };
+    }),
   );
 }
 
@@ -80,14 +88,15 @@ async function compileHtmlFromDoc(
     onStep?: HtmlCompileStepCallback;
   },
 ): Promise<string> {
-  const prepared = await prepareDocForHtmlCompile(doc);
+  const { doc: prepared, fontEntries } = await prepareDocForHtmlCompile(doc);
   const extraVariants = options?.variants ?? [];
   const preparedVariants = await prepareVariantsForHtmlCompile(extraVariants);
-  return compileToHtmlPure(prepared, {
+  const html = await compileToHtmlPureAsync(prepared, {
     noScript: preparedVariants.length === 0,
     variants: preparedVariants,
     observers: createHtmlCompileObservers(options?.onStep),
   });
+  return patchCompiledHtmlFonts(html, fontEntries);
 }
 
 /** Compiles one page to HTML (pure JS). Used by preview. */
@@ -173,6 +182,7 @@ export async function GetAssetDataURI(url: string): Promise<string> {
   if (expanded.startsWith('data:')) return expanded;
   if (/^https?:\/\//i.test(expanded)) return expanded;
 
+
   if (isLocalAssetRef(expanded)) {
     if (!isConnectorActive()) return '';
     try {
@@ -232,12 +242,16 @@ export async function CompilePageSVGFromDocument(
   pageName: string,
 ): Promise<{ uri: string; usedGoTextFallback: boolean }> {
   const pageDocJSON = extractPageDocumentJson(docJSON, pageName);
-  const preparedJSON = await resolveDocumentJsonForCompile(pageDocJSON);
+  const pageDoc = JSON.parse(pageDocJSON) as PsrtDocument;
+  const withConsts: PsrtDocument = {
+    ...pageDoc,
+    consts: { ...(pageDoc.consts ?? {}), ...getActiveConsts() },
+  };
+  const { doc: prepared, fontEntries } = await resolveDocumentForCompile(withConsts);
   await new Promise<void>((resolve) => {
     setTimeout(resolve, 0);
   });
-  const doc = JSON.parse(preparedJSON);
-  const svg = compileToSvg(doc, pageName, {});
+  const svg = patchCompiledSvgFonts(compileToSvg(prepared, pageName, {}), fontEntries);
   return {
     uri: encodePreview(svg, 'image/svg+xml'),
     usedGoTextFallback: false,
@@ -267,6 +281,23 @@ export async function OpenImageFileDialog(): Promise<string> {
       reader.onload = () => resolve(String(reader.result ?? ''));
       reader.onerror = () => resolve('');
       reader.readAsDataURL(file);
+    };
+    input.click();
+  });
+}
+
+export async function OpenFontFileDialog(): Promise<string> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.woff2,.woff,.ttf,.otf,font/woff2,font/woff,application/font-woff2';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) {
+        resolve('');
+        return;
+      }
+      void readFontFileAsDataUri(file).then(resolve).catch(() => resolve(''));
     };
     input.click();
   });

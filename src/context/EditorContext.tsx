@@ -12,11 +12,12 @@ import { EventsOn } from '@wails/runtime/runtime';
 import { visualapp } from '@wails/go/models';
 import propertyMapData from '../../property-map.json';
 import type { PropertyMap } from '../types/propertyMap';
-import type { PsrtDocument } from '../types/document';
+import type { PsrtDocument, PsrtPage } from '../types/document';
 import { notifySvgGoTextFallback } from '../lib/svgCompile';
 import {
   addConstToDocument,
   addFontToDocument,
+  renameFontLabelInDocument,
   addPageToDocument,
   addTextToDocument,
   convertBlockKindInDocument,
@@ -115,7 +116,8 @@ export interface EditorContextValue {
   setPreviewTab: (tab: PreviewTab) => void;
   refreshPageImage: () => Promise<void>;
   refreshAssetURL: (url: string) => Promise<void>;
-  addFont: (url: string) => void;
+  addFont: (url: string, label?: string) => void;
+  renameFont: (url: string, label: string) => void;
   removeFont: (url: string) => void;
   addConst: (name: string, value: string) => void;
   removeConst: (name: string) => void;
@@ -126,6 +128,7 @@ export interface EditorContextValue {
   savingSvg: boolean;
   savingPsrt: boolean;
   htmlCompileProgress: HtmlCompileProgress | null;
+  loadThumbs: (doc?: { pages?: Pick<PsrtPage, 'name' | 'imageUrl'>[] }) => Promise<void>;
 }
 
 export const EditorContext = createContext<EditorContextValue | null>(null);
@@ -244,12 +247,13 @@ export function EditorProvider({
     }
   }, []);
 
-  const loadThumbs = useCallback(async (doc: PsrtDocument) => {
+  const loadThumbs = useCallback(async (_doc?: { pages?: Pick<PsrtPage, 'name' | 'imageUrl'>[] }) => {
+    const doc = _doc ?? document as { pages?: Pick<PsrtPage, 'name' | 'imageUrl'>[] };
     const next: Record<string, string> = {};
     for (const p of doc.pages ?? []) {
       if (!p.imageUrl) continue;
       let thumb = thumbCache.current.get(p.imageUrl);
-      if (thumb === undefined) {
+      if (thumb === undefined || thumb === NOT_FOUND_IMAGE_SRC) {
         try {
           const resolved = await api.GetAssetDataURI(p.imageUrl);
           thumb = resolved || NOT_FOUND_IMAGE_SRC;
@@ -728,9 +732,17 @@ export function EditorProvider({
   }, []);
 
   const addFont = useCallback(
-    (url: string) => {
+    (url: string, label?: string) => {
       if (!document) return;
-      replaceDocument(addFontToDocument(document, url));
+      replaceDocument(addFontToDocument(document, url, label));
+    },
+    [document, replaceDocument],
+  );
+
+  const renameFont = useCallback(
+    (url: string, label: string) => {
+      if (!document) return;
+      replaceDocument(renameFontLabelInDocument(document, url, label));
     },
     [document, replaceDocument],
   );
@@ -813,6 +825,7 @@ export function EditorProvider({
       refreshPageImage,
       refreshAssetURL,
       addFont,
+      renameFont,
       removeFont,
       addConst,
       removeConst,
@@ -823,6 +836,7 @@ export function EditorProvider({
       savingSvg,
       savingPsrt,
       htmlCompileProgress,
+      loadThumbs,
     }),
     [
       document,
@@ -875,6 +889,7 @@ export function EditorProvider({
       refreshPageImage,
       refreshAssetURL,
       addFont,
+      renameFont,
       removeFont,
       addConst,
       removeConst,
@@ -884,6 +899,7 @@ export function EditorProvider({
       savingSvg,
       savingPsrt,
       htmlCompileProgress,
+      loadThumbs,
     ],
   );
 
