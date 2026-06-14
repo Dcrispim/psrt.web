@@ -3,6 +3,7 @@ import { PSRTImage, type InteractionBlockRenderProps } from '@psrt/react-image';
 import '@psrt/react-image/style.css';
 import { GetAssetDataURI } from '@wails/go/main/GUIApp';
 import { useEditor } from '../context/useEditor';
+import { useDocumentFonts } from '../hooks/useDocumentFonts';
 import { clientPointToImagePercent } from '../lib/imagePointerCoords';
 import { NOT_FOUND_IMAGE_SRC } from '../lib/notFoundImage';
 import { TextBlock } from './TextBlock';
@@ -33,6 +34,8 @@ export function WebPreview({ variant = 'footer' }: { variant?: 'footer' | 'canva
     const uri = await GetAssetDataURI(url);
     return uri || NOT_FOUND_IMAGE_SRC;
   }, []);
+
+  useDocumentFonts(document?.fonts, resolveAssetUrl, document?.fontLabels);
 
   const placeSelectedTextAtClient = useCallback(
     (clientX: number, clientY: number) => {

@@ -1,14 +1,21 @@
 import { useEditor } from '../context/useEditor';
 import { FallbackImage } from './FallbackImage';
+import { useEffect } from 'react';
 
 export function PageThumbnailsSidebar() {
-  const { state, thumbs, setActivePage } = useEditor();
+  const { state, thumbs, setActivePage, loadThumbs } = useEditor();
   const pages = state?.pages ?? [];
   const activePage = state?.activePage ?? '';
 
   if (pages.length === 0) {
     return <aside className="page-thumbs-sidebar" aria-label="Páginas" />;
   }
+
+
+  useEffect(() => {
+    void loadThumbs({ pages: pages.map((p) => ({ name: p.name, imageUrl: p.imageUrl ?? '' })) });
+  }, [pages, loadThumbs]);
+
 
   return (
     <aside className="page-thumbs-sidebar" aria-label="Páginas">
