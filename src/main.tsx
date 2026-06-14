@@ -16,7 +16,7 @@ import {
 } from './services/draftRestorePreference';
 import { APP_NAME, LOGO_FULL_SRC } from './lib/branding';
 import './styles/global.css';
-await initPsrt();
+
 if (import.meta.env.PROD) {
   void import('virtual:pwa-register').then(({ registerSW }) => {
     registerSW({ immediate: true });
@@ -64,7 +64,7 @@ function Bootstrap() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-
+      await initPsrt();
       const stored = await loadDraft();
       if (cancelled) return;
 

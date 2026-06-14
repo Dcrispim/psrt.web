@@ -32,4 +32,6 @@ export interface PsrtDocument {
   pages: PsrtPage[];
   fonts: string[];
   consts: Record<string, string>;
+  /** User-friendly `font-family` name keyed by the $FONTS entry (URL or data URI). */
+  fontLabels?: Record<string, string>;
 }

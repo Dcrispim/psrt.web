@@ -56,6 +56,8 @@ export function OpenFileDialog():Promise<visualapp.OpenFileResult>;
 
 export function OpenImageFileDialog():Promise<string>;
 
+export function OpenFontFileDialog():Promise<string>;
+
 export function ParseDocumentPSRT(arg1:string):Promise<string>;
 
 export function PatchMask(arg1:string,arg2:number,arg3:visualapp.MaskPatch):Promise<void>;
