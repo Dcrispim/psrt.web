@@ -31,3 +31,12 @@ export const IconBold = ({ size: n }: Props = {}) => (<svg {...s(n)}><path d="M7
 export const IconItalic = ({ size: n }: Props = {}) => (<svg {...s(n)}><path d="M19 4h-9M14 20H5M15 4L9 20"/></svg>);
 export const IconUnderline = ({ size: n }: Props = {}) => (<svg {...s(n)}><path d="M6 4v7a6 6 0 0 0 12 0V4M4 21h16"/></svg>);
 export const IconStrike = ({ size: n }: Props = {}) => (<svg {...s(n)}><path d="M4 12h16M17 6.5A4 4 0 0 0 13 4h-2a4 4 0 0 0 0 8M7 17.5A4 4 0 0 0 11 20h2a4 4 0 0 0 0-8"/></svg>);
+export const IconPin = ({ size: n, className }: { size: number, className?: string }) => (
+  <svg
+    {...s(n)}
+    className={className}
+  >
+    <path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
+  </svg>
+);
+

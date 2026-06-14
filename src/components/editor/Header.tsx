@@ -30,10 +30,13 @@ export function Header() {
     addConst,
     removeConst,
     addFont,
+    renameFont,
+    removeFont,
     showToast,
     savingHtml,
     compileHtml,
     previewTab,
+    loadThumbs,
   } = useEditor();
   const { status } = useConnector();
   const { confirm, prompt } = useAlertModal();
@@ -320,6 +323,18 @@ export function Header() {
           >
             <Icon name="trash" />
           </button>
+
+          <button
+            type="button"
+            className={s.iconBtn}
+            title="Atualizar thumbnais"
+
+            onClick={() => {
+              void loadThumbs({ pages: state?.pages?.map((p) => ({ name: p.name, imageUrl: p.imageUrl ?? '' })) });
+            }}
+          >
+            <Icon name="html" />
+          </button>
         </div>
 
         <div className={s.spacer} />
@@ -384,10 +399,18 @@ export function Header() {
       <AddFontModal
         open={fontModalOpen}
         existingUrls={existingFontUrls}
-        onAdd={(url) => {
-          addFont(url);
-          setFontModalOpen(false);
+        fontLabels={editorDoc?.fontLabels}
+        onAdd={(url, label) => {
+          addFont(url, label);
           showToast('Fonte adicionada');
+        }}
+        onRename={(url, label) => {
+          renameFont(url, label);
+          showToast('Nome da fonte atualizado');
+        }}
+        onRemove={(url) => {
+          removeFont(url);
+          showToast('Fonte removida');
         }}
         onCancel={() => setFontModalOpen(false)}
       />

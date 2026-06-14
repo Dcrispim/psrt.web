@@ -2,7 +2,7 @@ import { useState } from "react";
 import s from "./sidebar.module.css";
 import type { InlineWrapKind } from "../../lib/inlineMarkup";
 import type { TextBlock } from "./types";
-import { PropertiesPanel } from "./PropertiesPanel.new";
+import { PropertiesPanel } from "./PropertiesPanel/index";
 import { PsrtPanel } from "./PsrtPanel";
 import { PageImageUrlBar } from "./PageImageUrlBar";
 

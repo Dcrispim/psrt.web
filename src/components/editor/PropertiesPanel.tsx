@@ -3,7 +3,7 @@ import type { InlineWrapKind } from "../../lib/inlineMarkup";
 import s from "./sidebar.module.css";
 import type { BorderRadius, TextBlock } from "./types";
 import { ZERO_BORDER_RADIUS } from "./types";
-import { isUniformBorderRadius, POSITION_PANEL_PROP_KEYS } from "../../lib/textBlockAdapter";
+import { fontWeightBoldPair, isFontWeightBold, isUniformBorderRadius, POSITION_PANEL_PROP_KEYS, toggleFontWeightBold } from "../../lib/textBlockAdapter";
 
 import { SliderField, ColorField, ToggleGroup, MultiToggle, SelectField, NumberField } from "./Fields";
 import {
@@ -372,7 +372,12 @@ export function PropertiesPanel({
           label="Peso"
           value={block.font.weight}
           min={100} max={900} step={100}
-          onChange={(v) => setFont("weight", v)}
+          onChange={(v) =>
+            onChange((b) => ({
+              ...b,
+              font: { ...b.font, ...fontWeightBoldPair(v) },
+            }))
+          }
         />
         <div className={s.grid2}>
           <NumberField
@@ -393,18 +398,14 @@ export function PropertiesPanel({
           label="Estilo"
           options={[
             {
-              active: block.font.bold,
+              active: isFontWeightBold(block.font.weight),
               label: <IconBold />,
               title: "Negrito",
               onToggle: () =>
                 tryInlineOrBlock("bold", () =>
                   onChange((b) => ({
                     ...b,
-                    font: {
-                      ...b.font,
-                      bold: !b.font.bold,
-                      weight: !b.font.bold ? 700 : b.font.weight < 700 ? b.font.weight : 400,
-                    },
+                    font: toggleFontWeightBold(b.font),
                   })),
                 ),
             },
