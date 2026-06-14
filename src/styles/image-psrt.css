@@ -95,7 +95,7 @@
 
 /* Canvas WEB: slide at natural image size × zoom (not window size) */
 .preview-web-canvas {
-  width: auto;
+  width: 90%;
   max-width: none;
   margin: 0;
   flex: 0 0 auto;
@@ -167,6 +167,7 @@
   text-shadow: none !important;
   -webkit-text-stroke-width: 0 !important;
   background-color: transparent !important;
+  display: block;
 }
 
 .canvas-stage .preview-web-canvas {
@@ -179,6 +180,7 @@
   position: relative;
   display: inline-block;
   line-height: 0;
+  --editor-ui-zoom: 1;
 }
 
 .canvas-text-overlay {

@@ -74,7 +74,7 @@ export function useWebPreviewPan(
     el.addEventListener('dragstart', blockNativeDrag);
 
     const onWheel = (e: WheelEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
+      //if (!(e.ctrlKey || e.metaKey)) return;
       e.preventDefault();
       const delta = e.deltaY < 0 ? WHEEL_ZOOM_FACTOR : 1 / WHEEL_ZOOM_FACTOR;
       const next = clamp(zoomRef.current * delta, minZoom, maxZoom);

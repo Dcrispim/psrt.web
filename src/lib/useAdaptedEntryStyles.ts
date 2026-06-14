@@ -6,7 +6,8 @@ import {
   type AdaptedWebStyles,
 } from './adaptWebStyle';
 import { isDeclaredInStyleRaw, pickExplicitAdapterCSS } from './explicitWebStyles';
-import { textFontSizePx } from './psrtGeometry';
+import { estimateTextBoxHeightPct, textFontSizePx } from './psrtGeometry';
+import { applyBackdropGlassFix } from './backdropGlass';
 import { isPresentStyleValue } from './styleValue';
 
 export type { AdaptedWebStyles };
@@ -117,11 +118,20 @@ export function resolveEntryStyle(
   } else if (adapterH) {
     hitHeight = adapterH;
   } else if (
-    !isMask &&
     typeof boxStyle.height === 'string' &&
     isPresentStyleValue('height', boxStyle.height)
   ) {
     hitHeight = boxStyle.height;
+  } else if (metrics && metrics.refHeight > 0) {
+    hitHeight = estimateTextBoxHeightPct(
+      {
+        width: entry.width,
+        size: entry.size,
+        text: entry.text,
+        styleRaw: entry.styleRaw ?? '{}',
+      },
+      metrics,
+    );
   }
 
   const hitArea: CSSProperties = {
@@ -131,20 +141,17 @@ export function resolveEntryStyle(
     width: `${entry.width}%`,
     boxSizing: 'border-box',
     zIndex: entry.index ?? 0,
-    ...(hitHeight ? { height: hitHeight, minHeight: hitHeight } : {}),
+    height: hitHeight,
+    minHeight: hitHeight,
   };
 
-  const merged: CSSProperties = {
-    ...boxStyle,
-    ...textStyle,
-    ...layout,
-  };
+  const container = applyBackdropGlassFix({ ...boxStyle, ...layout });
 
   return {
-    container: { ...boxStyle, ...layout },
+    container,
     text: { ...textStyle, ...(fontSize ? { fontSize } : {}) },
     hasStroke: base.hasStroke,
-    merged,
+    merged: { ...container, ...textStyle },
     hitArea,
   };
 }

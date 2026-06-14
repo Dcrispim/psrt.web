@@ -3,6 +3,9 @@ import type {
   TextBlock,
   BlockKind,
   BorderRadius,
+  Blur,
+  BlurSide,
+  Shadow,
   HAlign,
   VAlign,
   Direction,
@@ -10,7 +13,7 @@ import type {
   Overflow,
   TextTransform,
 } from '../components/editor/types';
-import { ZERO_BORDER_RADIUS } from '../components/editor/types';
+import { ZERO_BLUR, ZERO_BORDER_RADIUS, ZERO_SHADOW } from '../components/editor/types';
 import { parseGoogleFontsFamilies } from './googleFontsUrl';
 import { parseStyle, styleStringValue, toColorInput } from './parseStyle';
 import { resolveMaskHeightPercent } from './maskHeight';
@@ -33,6 +36,38 @@ export const BORDER_RADIUS_STYLE_KEYS = [
 ] as const;
 
 const BORDER_RADIUS_STYLE_KEY_SET = new Set<string>(BORDER_RADIUS_STYLE_KEYS);
+
+export const BLUR_STYLE_KEYS = [
+  'blur',
+  'blur-left',
+  'blurLeft',
+  'blur-right',
+  'blurRight',
+  'blur-top',
+  'blurTop',
+  'blur-bottom',
+  'blurBottom',
+] as const;
+
+const BLUR_STYLE_KEY_SET = new Set<string>(BLUR_STYLE_KEYS);
+
+export const SHADOW_STYLE_KEYS = [
+  'text-shadow',
+  'textShadow',
+  'ts',
+  'box-shadow',
+  'boxShadow',
+  'bsh',
+] as const;
+
+const SHADOW_STYLE_KEY_SET = new Set<string>(SHADOW_STYLE_KEYS);
+
+const BLUR_SIDE_STYLE_KEY: Record<Exclude<BlurSide, ''>, string> = {
+  left: 'blur-left',
+  right: 'blur-right',
+  top: 'blur-top',
+  bottom: 'blur-bottom',
+};
 
 /** Style keys owned by structured panel fields (not shown in CSS props table). */
 export const STRUCTURED_STYLE_KEYS = new Set([
@@ -71,6 +106,8 @@ export const STRUCTURED_STYLE_KEYS = new Set([
   'text-overflow',
   'textOverflow',
   ...BORDER_RADIUS_STYLE_KEYS,
+  ...BLUR_STYLE_KEYS,
+  ...SHADOW_STYLE_KEYS,
 ]);
 
 /** Edited in Posição & Tamanho; hidden from the free-form CSS props list. */
@@ -81,6 +118,14 @@ export function isUniformBorderRadius(r: BorderRadius): boolean {
     r.topLeft === r.topRight &&
     r.topRight === r.bottomRight &&
     r.bottomRight === r.bottomLeft
+  );
+}
+
+export function isUniformShadow(shadow: Shadow): boolean {
+  return (
+    shadow.top === shadow.right &&
+    shadow.right === shadow.bottom &&
+    shadow.bottom === shadow.left
   );
 }
 
@@ -217,6 +262,225 @@ function parseBorderRadius(style: Record<string, unknown>): BorderRadius {
     return { topLeft: a, topRight: b, bottomRight: c, bottomLeft: b };
   }
   return { topLeft: a, topRight: b, bottomRight: c, bottomLeft: d };
+}
+
+function parseBlurSideToken(token: string): BlurSide {
+  const low = token.toLowerCase();
+  if (low === 'left' || low === 'right' || low === 'top' || low === 'bottom') {
+    return low;
+  }
+  return '';
+}
+
+function parseBlur(style: Record<string, unknown>): Blur {
+  const sideEntries: { keys: string[]; side: BlurSide }[] = [
+    { keys: ['blur-left', 'blurLeft'], side: 'left' },
+    { keys: ['blur-right', 'blurRight'], side: 'right' },
+    { keys: ['blur-top', 'blurTop'], side: 'top' },
+    { keys: ['blur-bottom', 'blurBottom'], side: 'bottom' },
+  ];
+  for (const { keys, side } of sideEntries) {
+    const raw = str(style, ...keys);
+    if (!raw) continue;
+    const amount = parsePxToken(raw);
+    if (amount > 0) return { amount, side };
+  }
+
+  const raw = str(style, 'blur');
+  if (!raw) return { ...ZERO_BLUR };
+
+  const parts = raw.split(/\s+/).filter(Boolean);
+  let side: BlurSide = '';
+  const amountParts: string[] = [];
+  for (const part of parts) {
+    const parsedSide = parseBlurSideToken(part);
+    if (parsedSide) {
+      if (!side) side = parsedSide;
+    } else {
+      amountParts.push(part);
+    }
+  }
+  const amount = parsePxToken(amountParts.join(' ') || raw);
+  if (amount <= 0) return { ...ZERO_BLUR };
+  return { amount, side };
+}
+
+function pctStyle(value: number): string {
+  return `${value}%`;
+}
+
+function blurStyleEntries(blur: Blur): Record<string, string> | null {
+  if (blur.amount <= 0) return null;
+  if (!blur.side) {
+    return { blur: pctStyle(blur.amount) };
+  }
+  return { [BLUR_SIDE_STYLE_KEY[blur.side]]: pctStyle(blur.amount) };
+}
+
+export function blurStylePatch(
+  blur: Blur,
+): Pick<Partial<visualapp.TextPatch>, 'styleSet' | 'styleRemove'> {
+  const entries = blurStyleEntries(blur);
+  if (entries) {
+    return {
+      styleSet: entries,
+      styleRemove: [...BLUR_STYLE_KEYS],
+    };
+  }
+  return { styleRemove: [...BLUR_STYLE_KEYS] };
+}
+
+function blurEqual(a: Blur, b: Blur): boolean {
+  return a.amount === b.amount && a.side === b.side;
+}
+
+function parseShadowColor(raw: string): { color: string; dims: string } {
+  const colorMatch = raw.match(/(#[0-9a-f]{3,8}|rgba?\([^)]+\))\s*$/i);
+  if (!colorMatch || colorMatch.index === undefined) {
+    return { color: '#000000', dims: raw.trim() };
+  }
+  return {
+    color: colorMatch[1],
+    dims: raw.slice(0, colorMatch.index).trim(),
+  };
+}
+
+function splitShadowLayers(raw: string): string[] {
+  const layers: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (ch === '(') depth++;
+    else if (ch === ')') depth--;
+    else if (ch === ',' && depth === 0) {
+      layers.push(raw.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  layers.push(raw.slice(start).trim());
+  return layers.filter(Boolean);
+}
+
+function parseShadowLayer(layer: string): Shadow {
+  const { color, dims } = parseShadowColor(layer);
+  const nums = dims.split(/\s+/).filter(Boolean).map(parsePxToken);
+  const [offsetX = 0, offsetY = 0, blur = 0] = nums;
+  const side: Shadow = { ...ZERO_SHADOW, blur, color };
+
+  if (offsetX > 0 && offsetY === 0) side.right = offsetX;
+  else if (offsetX < 0 && offsetY === 0) side.left = -offsetX;
+  else if (offsetY > 0 && offsetX === 0) side.bottom = offsetY;
+  else if (offsetY < 0 && offsetX === 0) side.top = -offsetY;
+  else {
+    if (offsetX > 0) side.right = offsetX;
+    else if (offsetX < 0) side.left = -offsetX;
+    if (offsetY > 0) side.bottom = offsetY;
+    else if (offsetY < 0) side.top = -offsetY;
+  }
+
+  return side;
+}
+
+function parseShadow(style: Record<string, unknown>): Shadow {
+  const raw = str(
+    style,
+    'text-shadow',
+    'textShadow',
+    'ts',
+    'box-shadow',
+    'boxShadow',
+    'bsh',
+  );
+  if (!raw) return { ...ZERO_SHADOW };
+
+  const layers = splitShadowLayers(raw);
+  const result = { ...ZERO_SHADOW };
+
+  for (const layer of layers) {
+    const parsed = parseShadowLayer(layer);
+    result.top = Math.max(result.top, parsed.top);
+    result.right = Math.max(result.right, parsed.right);
+    result.bottom = Math.max(result.bottom, parsed.bottom);
+    result.left = Math.max(result.left, parsed.left);
+    if (parsed.blur > 0) result.blur = parsed.blur;
+    if (parsed.color) result.color = parsed.color;
+  }
+
+  if (result.top === 0 && result.right === 0 && result.bottom === 0 && result.left === 0) {
+    return { ...ZERO_SHADOW, color: result.color };
+  }
+  return result;
+}
+
+function shadowLayer(offsetX: number, offsetY: number, blur: number, color: string): string {
+  const fmt = (n: number) => (n === 0 ? '0' : `${n < 0 ? '-' : ''}${pctStyle(Math.abs(n))}`);
+  return `${fmt(offsetX)} ${fmt(offsetY)} ${blur <= 0 ? '0' : pctStyle(blur)} ${color}`;
+}
+
+function shadowCSSValue(shadow: Shadow): string | null {
+  const { top, right, bottom, left, blur, color } = shadow;
+  if (top === 0 && right === 0 && bottom === 0 && left === 0) return null;
+
+  const layers: string[] = [];
+  if (top > 0) layers.push(shadowLayer(0, -top, blur, color));
+  if (right > 0) layers.push(shadowLayer(right, 0, blur, color));
+  if (bottom > 0) layers.push(shadowLayer(0, bottom, blur, color));
+  if (left > 0) layers.push(shadowLayer(-left, 0, blur, color));
+
+  if (layers.length === 0) return null;
+  return layers.join(', ');
+}
+
+function shadowStyleKey(kind: BlockKind): string {
+  return kind === 'mask' ? 'box-shadow' : 'text-shadow';
+}
+
+function shadowStyleEntries(
+  shadow: Shadow,
+  kind: BlockKind,
+): Record<string, string> | null {
+  const value = shadowCSSValue(shadow);
+  if (!value) return null;
+  return { [shadowStyleKey(kind)]: value };
+}
+
+export function shadowStylePatch(
+  shadow: Shadow,
+  kind: BlockKind,
+): Pick<Partial<visualapp.TextPatch>, 'styleSet' | 'styleRemove'> {
+  const entries = shadowStyleEntries(shadow, kind);
+  if (entries) {
+    return {
+      styleSet: entries,
+      styleRemove: [...SHADOW_STYLE_KEYS],
+    };
+  }
+  return { styleRemove: [...SHADOW_STYLE_KEYS] };
+}
+
+function shadowEqual(a: Shadow, b: Shadow): boolean {
+  return (
+    a.top === b.top &&
+    a.right === b.right &&
+    a.bottom === b.bottom &&
+    a.left === b.left &&
+    a.blur === b.blur &&
+    a.color === b.color
+  );
+}
+
+export function borderRadiusStylePatch(
+  r: BorderRadius,
+): Pick<Partial<visualapp.TextPatch>, 'styleSet' | 'styleRemove'> {
+  const brEntries = borderRadiusStyleEntries(r);
+  if (brEntries) {
+    return {
+      styleSet: brEntries,
+      styleRemove: [...BORDER_RADIUS_STYLE_KEYS],
+    };
+  }
+  return { styleRemove: [...BORDER_RADIUS_STYLE_KEYS] };
 }
 
 function borderRadiusStyleEntries(r: BorderRadius): Record<string, string> | null {
@@ -365,6 +629,8 @@ function sharedStyleToBlockFields(
       overflow: parseOverflow(style),
     },
     borderRadius: parseBorderRadius(style),
+    blur: parseBlur(style),
+    shadow: parseShadow(style),
     props,
     sourceStyle,
   };
@@ -419,9 +685,24 @@ export function styleEntriesFromBlock(block: TextBlock): Record<string, string> 
     Object.assign(out, brEntries);
   }
 
+  const blurEntries = blurStyleEntries(block.blur);
+  if (blurEntries) {
+    Object.assign(out, blurEntries);
+  }
+
+  const shadowEntries = shadowStyleEntries(block.shadow, block.kind);
+  if (shadowEntries) {
+    Object.assign(out, shadowEntries);
+  }
+
   for (const p of block.props) {
     const k = p.key.trim();
-    if (!k || BORDER_RADIUS_STYLE_KEY_SET.has(k)) continue;
+    if (
+      !k ||
+      BORDER_RADIUS_STYLE_KEY_SET.has(k) ||
+      BLUR_STYLE_KEY_SET.has(k) ||
+      SHADOW_STYLE_KEY_SET.has(k)
+    ) continue;
     out[k] = p.value;
   }
 
@@ -772,6 +1053,26 @@ function appendStructuralStylePatch(
       styleRemove.push(...BORDER_RADIUS_STYLE_KEYS);
     }
   }
+
+  if (!blurEqual(prev.blur, next.blur)) {
+    const blurEntries = blurStyleEntries(next.blur);
+    if (blurEntries) {
+      for (const k of BLUR_STYLE_KEYS) styleRemove.push(k);
+      Object.assign(styleSet, blurEntries);
+    } else {
+      styleRemove.push(...BLUR_STYLE_KEYS);
+    }
+  }
+
+  if (!shadowEqual(prev.shadow, next.shadow) || prev.kind !== next.kind) {
+    const shadowEntries = shadowStyleEntries(next.shadow, next.kind);
+    if (shadowEntries) {
+      for (const k of SHADOW_STYLE_KEYS) styleRemove.push(k);
+      Object.assign(styleSet, shadowEntries);
+    } else {
+      styleRemove.push(...SHADOW_STYLE_KEYS);
+    }
+  }
 }
 
 export function blockPatchToTextPatch(
@@ -845,6 +1146,8 @@ export function blockPatchToMaskPatch(
   } else if (next.backgroundSet && prev.background !== next.background) {
     styleSet.background = next.background;
   }
+
+  appendStructuralStylePatch(prev, next, styleSet, styleRemove);
 
   if (Object.keys(styleSet).length > 0) patch.styleSet = styleSet;
   if (styleRemove.length > 0) patch.styleRemove = [...new Set(styleRemove)];

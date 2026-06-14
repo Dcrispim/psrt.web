@@ -3,6 +3,7 @@ import { PageThumbnailsSidebar } from './components/PageThumbnailsSidebar';
 import { Canvas } from './components/Canvas';
 import { PropertiesPanel } from './components/PropertiesPanel';
 import { Toast } from './components/Toast';
+import { HtmlExportOverlay } from './components/HtmlExportOverlay';
 import { ConnectorBanner } from './components/ConnectorBanner';
 
 export function App() {
@@ -16,6 +17,7 @@ export function App() {
         <PropertiesPanel />
       </main>
       <Toast />
+      <HtmlExportOverlay />
     </>
   );
 }

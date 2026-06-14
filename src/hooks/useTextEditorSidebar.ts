@@ -174,6 +174,28 @@ export function useTextEditorSidebar(): EditorSidebarProps | null {
     [activeTextContent, onActiveTextContentChange],
   );
 
+  const onPatchStyle: EditorSidebarProps['onPatchStyle'] = useCallback(
+    (patch) => {
+      const idx = selectedIndex;
+      if (idx < 0) return;
+      if (
+        (!patch.styleSet || Object.keys(patch.styleSet).length === 0) &&
+        (!patch.styleRemove || patch.styleRemove.length === 0)
+      ) {
+        return;
+      }
+      flushContent();
+      void beginEdit();
+      const block = blocks.find((b) => b.id === String(idx));
+      if (block?.kind === 'mask') {
+        patchMask(idx, patch);
+      } else {
+        patchText(idx, patch);
+      }
+    },
+    [selectedIndex, blocks, patchText, patchMask, beginEdit, flushContent],
+  );
+
   const onPatchStyleProp: EditorSidebarProps['onPatchStyleProp'] = useCallback(
     (key: string, value: string | null) => {
       const idx = selectedIndex;
@@ -337,6 +359,7 @@ export function useTextEditorSidebar(): EditorSidebarProps | null {
     onDuplicate,
     onRemove,
     onBlockChange,
+    onPatchStyle,
     onPatchStyleProp,
     onTypographyWrap,
     onPsrtChange,

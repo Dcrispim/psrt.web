@@ -1,3 +1,5 @@
+import { parse, type PsrtVariant } from '@psrt/sdk';
+
 export interface HtmlVariantBody {
   label: string;
   content: string;
@@ -24,4 +26,17 @@ export async function prepareHtmlVariants(files: File[]): Promise<HtmlVariantPay
   }
 
   return { paths, bodies };
+}
+
+/** Parses selected .psrt files into SDK variants for HTML export. */
+export async function loadHtmlVariantsFromFiles(files: File[]): Promise<PsrtVariant[]> {
+  const variants: PsrtVariant[] = [];
+  for (const file of files) {
+    const content = await file.text();
+    variants.push({
+      label: file.name,
+      doc: parse(content),
+    });
+  }
+  return variants;
 }

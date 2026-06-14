@@ -1,20 +1,27 @@
 import { useEffect, useState } from 'react';
 import { decodeDataUriBytes } from './decodeDataUri';
 
+function htmlToBytes(html: string): Uint8Array | null {
+  if (html.startsWith('data:')) {
+    return decodeDataUriBytes(html);
+  }
+  return new TextEncoder().encode(html);
+}
+
 /**
- * Turns a compiled HTML data URI into a blob: URL for iframe preview.
+ * Turns compiled HTML (raw string or data URI) into a blob: URL for iframe preview.
  * Large documents (embedded JPEG base64) exceed WebView2 limits on data: navigation.
  */
-export function useHtmlPreviewBlobUrl(dataUri: string | null): string | null {
+export function useHtmlPreviewBlobUrl(html: string | null): string | null {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!dataUri) {
+    if (!html) {
       setBlobUrl(null);
       return;
     }
 
-    const bytes = decodeDataUriBytes(dataUri);
+    const bytes = htmlToBytes(html);
     if (bytes == null) {
       setBlobUrl(null);
       return;
@@ -27,7 +34,7 @@ export function useHtmlPreviewBlobUrl(dataUri: string | null): string | null {
     return () => {
       URL.revokeObjectURL(url);
     };
-  }, [dataUri]);
+  }, [html]);
 
   return blobUrl;
 }

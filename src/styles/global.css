@@ -69,6 +69,50 @@ body {
   }
 }
 
+.psrt-html-export-status {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 9998;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  max-width: min(320px, calc(100vw - 40px));
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #1c1c26;
+  color: #a1a1aa;
+  font-size: 0.9rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.psrt-html-export-status__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.psrt-html-export-status__label {
+  color: #fff;
+  line-height: 1.35;
+}
+
+.psrt-html-export-status__detail {
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: #71717a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.psrt-html-export-status .spinner {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
 .preview-web-local-hint {
   margin: 0;
   padding: 10px 14px;
@@ -422,7 +466,7 @@ button:hover {
 }
 
 .canvas-viewport {
-  width: min(100%, 1000px);
+  width: min(100%, 2500px);
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -443,10 +487,23 @@ button:hover {
   cursor: grabbing;
 }
 
+.canvas-viewport--compiled {
+  overflow: hidden;
+  align-self: stretch;
+  width: 100%;
+}
 .canvas-stage-static {
   cursor: default;
 }
 
+.canvas-stage-compiled {
+  aspect-ratio: unset;
+  flex: 1;
+  align-self: stretch;
+  min-height: 0;
+  height: 100%;
+  max-height: none;
+}
 .canvas-stage-static:has(.svg-canvas-preview),
 .canvas-stage-static:has(.html-canvas-preview) {
   overflow: hidden;
@@ -486,6 +543,8 @@ button:hover {
 
 .html-canvas-preview {
   position: absolute;
+  justify-content: center;
+    align-items: center;
   inset: 0;
   width: 100%;
   height: 100%;
@@ -606,6 +665,28 @@ button:hover {
   inset: 0;
 }
 
+.canvas-editor-stage .text-block {
+  border-width: calc(1px * var(--editor-ui-zoom, 1));
+}
+
+.canvas-editor-stage .text-block.selected {
+  border-color: #1db954;
+  box-shadow: 0 0 calc(4px * var(--editor-ui-zoom, 1)) #1db954;
+}
+
+.canvas-editor-stage .resize-handle {
+  width: calc(10px * var(--editor-ui-zoom, 1));
+  height: calc(10px * var(--editor-ui-zoom, 1));
+  border-radius: calc(3px * var(--editor-ui-zoom, 1));
+}
+
+.canvas-editor-stage .resize-handle.e {
+  right: calc(-5px * var(--editor-ui-zoom, 1));
+}
+
+.canvas-editor-stage .resize-handle.s {
+  bottom: calc(-5px * var(--editor-ui-zoom, 1));
+}
 .text-block {
   position: absolute;
   border: 1px dashed transparent;

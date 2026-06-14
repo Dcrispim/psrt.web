@@ -1,13 +1,19 @@
-import { StrictMode, useEffect, useState } from 'react';
+import { StrictMode, useCallback, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { EditorProvider } from './context/EditorContext';
 import { AlertModalProvider } from './context/AlertModalContext';
 import { ConnectorProvider } from './context/ConnectorContext';
 import { App } from './App';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
+import { AlertModal } from './components/editor/AlertModal';
 import { parseDocumentJson } from './lib/documentModel';
-import { initWasmClient } from './lib/wasmClient';
-import { loadDraft } from './services/documentStore';
+import { initPsrt } from '@psrt/sdk';
+import { loadDraft, type StoredDraft } from './services/documentStore';
+import {
+  fileBaseName,
+  getDraftRestorePreference,
+  saveDraftRestorePreference,
+} from './services/draftRestorePreference';
 import { APP_NAME, LOGO_FULL_SRC } from './lib/branding';
 import './styles/global.css';
 
@@ -35,27 +41,62 @@ function LoadingScreen({ message }: { message: string }) {
 function Bootstrap() {
   const [ready, setReady] = useState(false);
   const [draft, setDraft] = useState<DraftRestore | null>(null);
+  const [pendingDraft, setPendingDraft] = useState<StoredDraft | null>(null);
+
+  const resolveDraftRestore = useCallback((stored: StoredDraft, restore: boolean) => {
+    saveDraftRestorePreference(stored.filePath, restore);
+    if (restore) {
+      setDraft({
+        filePath: stored.filePath,
+        documentJson: stored.documentJson,
+      });
+    }
+    setPendingDraft(null);
+    setReady(true);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      await initWasmClient();
+      await initPsrt();
       const stored = await loadDraft();
-      if (!cancelled && stored?.documentJson) {
-        const restore = window.confirm('Restaurar rascunho salvo localmente?');
-        if (restore) {
-          setDraft({
-            filePath: stored.filePath,
-            documentJson: stored.documentJson,
-          });
+      if (cancelled) return;
+
+      if (stored?.documentJson) {
+        const preference = getDraftRestorePreference();
+        if (preference?.filePath === stored.filePath) {
+          resolveDraftRestore(stored, preference.restore);
+          return;
         }
+        setPendingDraft(stored);
+        return;
       }
-      if (!cancelled) setReady(true);
+
+      setReady(true);
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [resolveDraftRestore]);
+
+  if (pendingDraft) {
+    const fileName = fileBaseName(pendingDraft.filePath);
+    return (
+      <>
+        <LoadingScreen message="Carregando editor…" />
+        <AlertModal
+          open
+          mode="confirm"
+          title="Rascunho encontrado"
+          message={`Restaurar alterações não salvas de "${fileName}"?`}
+          confirmLabel="Restaurar"
+          cancelLabel="Descartar"
+          onConfirm={() => resolveDraftRestore(pendingDraft, true)}
+          onCancel={() => resolveDraftRestore(pendingDraft, false)}
+        />
+      </>
+    );
+  }
 
   if (!ready) {
     return <LoadingScreen message="Carregando editor…" />;

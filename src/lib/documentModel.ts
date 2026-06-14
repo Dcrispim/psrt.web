@@ -33,6 +33,18 @@ export function cloneDocument(doc: PsrtDocument): PsrtDocument {
   return structuredClone(doc);
 }
 
+export function extractPageDocument(fullDoc: PsrtDocument, pageName: string): PsrtDocument {
+  const page = fullDoc.pages.find((p) => p.name === pageName);
+  if (!page) {
+    throw new Error(`page ${pageName} not found`);
+  }
+  return {
+    pages: [page],
+    fonts: fullDoc.fonts ?? [],
+    consts: fullDoc.consts ?? {},
+  };
+}
+
 /** Blank PSRT: empty $FONTS / $CONSTS, page "inicio" with centered starter text. */
 export function createEmptyDocument(): PsrtDocument {
   return {

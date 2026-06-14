@@ -34,10 +34,18 @@ import {
   removePageFromDocument,
   removeTextFromDocument,
 } from '../lib/documentModel';
-import { prepareHtmlVariants } from '../lib/prepareHtmlVariants';
+import { loadHtmlVariantsFromFiles } from '../lib/prepareHtmlVariants';
+import {
+  ASSETS_PHASE_PROGRESS,
+  htmlCompileProgressFromStep,
+  type HtmlCompileProgress,
+} from '../lib/htmlCompileProgress';
+import { exportHtmlFromDocument, compilePageHtmlForWeb } from '../api/connectorClient';
 import { saveLastPsrt } from '../lib/localPsrt';
 import { sanitizeDocumentStylesForSave } from '../lib/textBlockAdapter';
 import { NOT_FOUND_IMAGE_SRC } from '../lib/notFoundImage';
+
+export type { HtmlCompileProgress };
 
 export type PreviewTab = 'svg' | 'web' | 'html';
 export type CompiledPreviewKind = 'svg' | 'html';
@@ -113,6 +121,10 @@ export interface EditorContextValue {
   showToast: (msg: string) => void;
   pageMoveRef: string;
   setPageMoveRef: (v: string) => void;
+  savingHtml: boolean;
+  savingSvg: boolean;
+  savingPsrt: boolean;
+  htmlCompileProgress: HtmlCompileProgress | null;
 }
 
 export const EditorContext = createContext<EditorContextValue | null>(null);
@@ -157,6 +169,15 @@ export function EditorProvider({
   const lastBgURL = useRef('');
   const persistPsrtTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const compileTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [savingHtml, setSavingHtml] = useState(false);
+  const [savingSvg] = useState(false);
+  const [savingPsrt] = useState(false);
+  const [htmlCompileProgress, setHtmlCompileProgress] = useState<HtmlCompileProgress | null>(null);
+
+  const onHtmlCompileStep = useCallback((ctx: Parameters<typeof htmlCompileProgressFromStep>[0]) => {
+    setHtmlCompileProgress(htmlCompileProgressFromStep(ctx));
+  }, []);
 
   const state = useMemo(() => {
     if (!document) return null;
@@ -298,9 +319,17 @@ export function EditorProvider({
 
   const compilePreviewHtml = useCallback(async () => {
     if (!document || !activePage) return;
-    const uri = await api.CompilePageHTMLFromDocument(docJSON(), activePage);
-    setCompiledPreview(activePage, 'html', uri);
-  }, [document, activePage, docJSON, setCompiledPreview]);
+    setHtmlCompileProgress(ASSETS_PHASE_PROGRESS);
+    try {
+      const html = await compilePageHtmlForWeb(document, activePage, onHtmlCompileStep);
+      setCompiledPreview(activePage, 'html', html);
+    } catch (error) {
+      showToast(`Erro ao compilar HTML: ${error}`);
+      throw error;
+    } finally {
+      setHtmlCompileProgress(null);
+    }
+  }, [document, activePage, onHtmlCompileStep, setCompiledPreview, showToast]);
 
   useEffect(() => {
     if (!autoCompile || !document || !activePage) return;
@@ -412,12 +441,24 @@ export function EditorProvider({
 
   const saveAsHtml = useCallback(
     async (variantFiles: File[]) => {
-      if (!document) return;
-      const { paths, bodies } = await prepareHtmlVariants(variantFiles);
-      await api.ExportHTMLFromDocument(docJSON(), paths, bodies);
-      showToast('Download HTML iniciado');
+      if (!document || document.pages.length === 0) return;
+
+      setSavingHtml(true);
+      setHtmlCompileProgress(ASSETS_PHASE_PROGRESS);
+      showToast('Preparando HTML...');
+
+      try {
+        const variants = await loadHtmlVariantsFromFiles(variantFiles);
+        await exportHtmlFromDocument(document, variants, onHtmlCompileStep);
+        showToast('Download HTML iniciado');
+      } catch (error) {
+        showToast('Erro ao preparar HTML: ' + error);
+      } finally {
+        setSavingHtml(false);
+        setHtmlCompileProgress(null);
+      }
     },
-    [document, docJSON, showToast],
+    [document, onHtmlCompileStep, showToast],
   );
 
   const undo = useCallback(() => {
@@ -663,8 +704,8 @@ export function EditorProvider({
   }, [compilePreviewSvg]);
 
   const compileHtml = useCallback(async () => {
-    await compilePreviewHtml();
     setPreviewTabState('html');
+    await compilePreviewHtml();
   }, [compilePreviewHtml]);
 
   const setPreviewTab = useCallback((tab: PreviewTab) => {
@@ -777,6 +818,10 @@ export function EditorProvider({
       showToast,
       pageMoveRef,
       setPageMoveRef,
+      savingHtml,
+      savingSvg,
+      savingPsrt,
+      htmlCompileProgress,
     }),
     [
       document,
@@ -834,6 +879,10 @@ export function EditorProvider({
       removeConst,
       showToast,
       pageMoveRef,
+      savingHtml,
+      savingSvg,
+      savingPsrt,
+      htmlCompileProgress,
     ],
   );
 
