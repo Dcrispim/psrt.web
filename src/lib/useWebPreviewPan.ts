@@ -32,6 +32,7 @@ export function useWebPreviewPan(
     panX: number;
     panY: number;
   } | null>(null);
+  const pinchRef = useRef<{ distance: number; zoom: number } | null>(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
 
@@ -82,9 +83,51 @@ export function useWebPreviewPan(
     };
 
     el.addEventListener('wheel', onWheel, { passive: false });
+
+    const touchDistance = (touches: TouchList) => {
+      if (touches.length < 2) return 0;
+      const dx = touches[0]!.clientX - touches[1]!.clientX;
+      const dy = touches[0]!.clientY - touches[1]!.clientY;
+      return Math.hypot(dx, dy);
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        pinchRef.current = {
+          distance: touchDistance(e.touches),
+          zoom: zoomRef.current,
+        };
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 2 || !pinchRef.current) return;
+      e.preventDefault();
+      const dist = touchDistance(e.touches);
+      if (dist <= 0 || pinchRef.current.distance <= 0) return;
+      const ratio = dist / pinchRef.current.distance;
+      const next = clamp(pinchRef.current.zoom * ratio, minZoom, maxZoom);
+      const cx = (e.touches[0]!.clientX + e.touches[1]!.clientX) / 2;
+      const cy = (e.touches[0]!.clientY + e.touches[1]!.clientY) / 2;
+      zoomAtPoint(cx, cy, next);
+    };
+
+    const onTouchEnd = () => {
+      if (pinchRef.current) pinchRef.current = null;
+    };
+
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.addEventListener('touchend', onTouchEnd);
+    el.addEventListener('touchcancel', onTouchEnd);
+
     return () => {
       el.removeEventListener('dragstart', blockNativeDrag);
       el.removeEventListener('wheel', onWheel);
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+      el.removeEventListener('touchcancel', onTouchEnd);
     };
   }, [enabled, minZoom, maxZoom, zoomAtPoint]);
 

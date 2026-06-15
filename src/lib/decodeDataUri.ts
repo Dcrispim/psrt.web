@@ -11,6 +11,13 @@ function decodeBase64Payload(payload: string): Uint8Array | null {
   }
 }
 
+/** True when a `data:` URI has non-empty payload after the comma. */
+export function hasDataUriPayload(uri: string): boolean {
+  const comma = uri.indexOf(',');
+  if (comma < 0) return false;
+  return uri.slice(comma + 1).trim().length > 0;
+}
+
 /** Decodes a `data:` URI (base64 or percent-encoded) to a UTF-8 string. */
 export function decodeDataUri(uri: string): string | null {
   const comma = uri.indexOf(',');

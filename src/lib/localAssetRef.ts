@@ -101,29 +101,32 @@ export function isLocalAssetRef(raw: string): boolean {
   return false;
 }
 
-function hasLocalRef(ref: string | undefined, consts: Record<string, string>): boolean {
-  if (!ref) return false;
-  return isLocalAssetRef(resolveAssetReference(ref, consts));
+function hasLocalAssetRef(
+  ref: string | undefined,
+  consts: Record<string, string>,
+): boolean {
+  if (!ref?.trim()) return false;
+  const trimmed = ref.trim();
+  const expanded = resolveAssetReference(trimmed, consts)?.trim() ?? '';
+  return isLocalAssetRef(expanded);
 }
 
-/** True when the document references local filesystem assets (pages, blocks, fonts, or consts). */
+/** True when the document references local filesystem assets (needs connector). */
 export function documentHasLocalAssetRefs(doc: PsrtDocument | null | undefined): boolean {
   if (!doc) return false;
   const consts = doc.consts ?? {};
+
   for (const page of doc.pages ?? []) {
-    if (hasLocalRef(page.imageUrl, consts)) return true;
+    if (hasLocalAssetRef(page.imageUrl, consts)) return true;
     for (const text of page.texts ?? []) {
-      if (hasLocalRef(text.imageRef, consts)) return true;
+      if (hasLocalAssetRef(text.imageRef, consts)) return true;
     }
     for (const mask of page.masks ?? []) {
-      if (hasLocalRef(mask.imageRef, consts)) return true;
+      if (hasLocalAssetRef(mask.imageRef, consts)) return true;
     }
   }
   for (const font of doc.fonts ?? []) {
-    if (hasLocalRef(font, consts)) return true;
-  }
-  for (const value of Object.values(consts)) {
-    if (isLocalAssetRef(value)) return true;
+    if (hasLocalAssetRef(font, consts)) return true;
   }
   return false;
 }

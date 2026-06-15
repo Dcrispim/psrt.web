@@ -42,8 +42,6 @@ export function useAdaptedEntryStyles(
       JSON.stringify(
         entries.map((e) => ({
           i: e.index,
-          x: e.x,
-          y: e.y,
           w: e.width,
           s: e.size,
           h: e.maskHeight,
