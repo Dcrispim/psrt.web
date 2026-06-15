@@ -12,7 +12,7 @@ import { EventsOn } from '@wails/runtime/runtime';
 import { visualapp } from '@wails/go/models';
 import propertyMapData from '../../property-map.json';
 import type { PropertyMap } from '../types/propertyMap';
-import type { PsrtDocument, PsrtPage } from '../types/document';
+import type { PsrtDocument } from '../types/document';
 import { notifySvgGoTextFallback } from '../lib/svgCompile';
 import {
   addConstToDocument,
@@ -24,9 +24,7 @@ import {
   duplicateTextInDocument,
   buildUIState,
   cloneDocument,
-  createEmptyDocument,
   movePageInDocument,
-  parseDocumentJson,
   patchPageInDocument,
   patchMaskInDocument,
   patchTextInDocument,
@@ -44,8 +42,10 @@ import {
 } from '../lib/htmlCompileProgress';
 import { exportHtmlFromDocument, compilePageHtmlForWeb } from '../api/connectorClient';
 import { saveLastPsrt } from '../lib/localPsrt';
-import { sanitizeDocumentStylesForSave } from '../lib/textBlockAdapter';
-import { NOT_FOUND_IMAGE_SRC } from '../lib/notFoundImage';
+import { setActiveDocumentConsts } from '../lib/resolveDocumentAsset';
+import { editorApiJson } from '../lib/editorApiSerialize';
+
+const AUTO_SAVE_INTERVAL_MS = 30_000;
 
 export type { HtmlCompileProgress };
 
@@ -59,21 +59,16 @@ export interface PageCompiledPreview {
 
 export interface EditorContextValue {
   document: PsrtDocument | null;
+  filePath: string;
   state: visualapp.UIState | null;
-  bgUri: string | null;
-  pageImageUri: string | null;
-  thumbs: Record<string, string>;
   previewTab: PreviewTab;
   getPagePreview: (page: string, kind: CompiledPreviewKind) => string | null;
   toast: string | null;
   multiSelected: Set<number>;
   propertyMap: PropertyMap;
-  openFile: () => Promise<void>;
-  newFile: () => void;
-  save: () => Promise<void>;
-  saveAs: () => Promise<void>;
-  saveAsSvg: () => Promise<void>;
-  saveAsHtml: (variantFiles: File[]) => Promise<void>;
+  loadDocument: (doc: PsrtDocument, path: string) => void;
+  resetDocument: (doc: PsrtDocument, path: string) => void;
+  replaceDocument: (doc: PsrtDocument, opts?: { recordUndo?: boolean }) => void;
   undo: () => void;
   redo: () => void;
   setActivePage: (name: string) => void;
@@ -94,8 +89,6 @@ export interface EditorContextValue {
     },
   ) => void;
   patchPage: (patch: Partial<visualapp.PagePatch>) => void;
-  applyPsrtSource: (text: string) => Promise<void>;
-  applyPagePsrtSource: (text: string) => Promise<void>;
   addText: () => void;
   duplicateText: () => void;
   removeText: (index: number) => void;
@@ -114,8 +107,8 @@ export interface EditorContextValue {
   compilePreviewHtml: () => Promise<void>;
   setAutoCompile: (on: boolean) => void;
   setPreviewTab: (tab: PreviewTab) => void;
-  refreshPageImage: () => Promise<void>;
-  refreshAssetURL: (url: string) => Promise<void>;
+  saveAsSvg: () => Promise<void>;
+  saveAsHtml: (variantFiles: File[]) => Promise<void>;
   addFont: (url: string, label?: string) => void;
   renameFont: (url: string, label: string) => void;
   removeFont: (url: string) => void;
@@ -128,7 +121,6 @@ export interface EditorContextValue {
   savingSvg: boolean;
   savingPsrt: boolean;
   htmlCompileProgress: HtmlCompileProgress | null;
-  loadThumbs: (doc?: { pages?: Pick<PsrtPage, 'name' | 'imageUrl'>[] }) => Promise<void>;
 }
 
 export const EditorContext = createContext<EditorContextValue | null>(null);
@@ -158,8 +150,6 @@ export function EditorProvider({
   >({});
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [autoCompile, setAutoCompileState] = useState(false);
-  const [bgUri, setBgUri] = useState<string | null>(null);
-  const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [previewTab, setPreviewTabState] = useState<PreviewTab>('web');
   const [compiledByPage, setCompiledByPage] = useState<Record<string, PageCompiledPreview>>({});
   const [toast, setToast] = useState<string | null>(null);
@@ -169,9 +159,10 @@ export function EditorProvider({
   const undoStack = useRef<PsrtDocument[]>([]);
   const redoStack = useRef<PsrtDocument[]>([]);
   const editSnapshot = useRef<PsrtDocument | null>(null);
-  const thumbCache = useRef(new Map<string, string>());
-  const lastBgURL = useRef('');
-  const persistPsrtTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const documentRef = useRef(document);
+  documentRef.current = document;
+  const filePathRef = useRef(filePath);
+  filePathRef.current = filePath;
   const compileTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [savingHtml, setSavingHtml] = useState(false);
@@ -186,7 +177,12 @@ export function EditorProvider({
   const state = useMemo(() => {
     if (!document) return null;
     return buildUIState(
-      document,
+      {
+        pages: document.pages,
+        fonts: document.fonts,
+        consts: document.consts,
+        fontLabels: document.fontLabels,
+      } as PsrtDocument,
       filePath || 'document.psrt',
       activePage,
       selectedIndex,
@@ -195,7 +191,12 @@ export function EditorProvider({
   }, [document, filePath, activePage, selectedIndex, autoCompile]);
 
   const docJSON = useCallback(
-    () => (document ? JSON.stringify(document) : ''),
+    () => (document ? editorApiJson({
+      pages: document.pages,
+      fonts: document.fonts,
+      consts: document.consts,
+      fontLabels: document.fontLabels,
+    }) : ''),
     [document],
   );
 
@@ -205,7 +206,12 @@ export function EditorProvider({
   }, []);
 
   const pushUndo = useCallback((prev: PsrtDocument) => {
-    undoStack.current.push(cloneDocument(prev));
+    undoStack.current.push(cloneDocument({
+      pages: prev.pages,
+      fonts: prev.fonts,
+      consts: prev.consts,
+      fontLabels: prev.fontLabels,
+    }));
     if (undoStack.current.length > 50) undoStack.current.shift();
     redoStack.current = [];
   }, []);
@@ -214,82 +220,44 @@ export function EditorProvider({
     (next: PsrtDocument, opts?: { recordUndo?: boolean }) => {
       setDocument((prev) => {
         if (prev && opts?.recordUndo !== false) {
-          pushUndo(prev);
+          pushUndo({
+            pages: prev.pages,
+            fonts: prev.fonts,
+            consts: prev.consts,
+            fontLabels: prev.fontLabels,
+          });
         }
-        return next;
+        return {
+          pages: next.pages,
+          fonts: next.fonts,
+          consts: next.consts,
+          fontLabels: next.fontLabels,
+        } as PsrtDocument;
       });
     },
     [pushUndo],
   );
 
-  const loadBg = useCallback(async (imageUrl: string) => {
-    if (!imageUrl) {
-      setBgUri(null);
-      lastBgURL.current = '';
-      return;
-    }
-    const cached = thumbCache.current.get(imageUrl);
-    if (cached !== undefined) {
-      setBgUri(cached || null);
-      lastBgURL.current = imageUrl;
-      return;
-    }
-    try {
-      const uri = await api.GetAssetDataURI(imageUrl);
-      const resolved = uri || NOT_FOUND_IMAGE_SRC;
-      thumbCache.current.set(imageUrl, resolved);
-      setBgUri(resolved);
-      lastBgURL.current = imageUrl;
-    } catch {
-      thumbCache.current.set(imageUrl, NOT_FOUND_IMAGE_SRC);
-      setBgUri(NOT_FOUND_IMAGE_SRC);
-      lastBgURL.current = imageUrl;
-    }
+  const loadDocument = useCallback((doc: PsrtDocument, path: string) => {
+    undoStack.current = [];
+    redoStack.current = [];
+    setCompiledByPage({});
+    setFilePath(path);
+    setDocument(doc);
+    setActivePageName(doc.pages[0]?.name ?? '');
+    setSelectedIndex(-1);
   }, []);
 
-  const loadThumbs = useCallback(async (_doc?: { pages?: Pick<PsrtPage, 'name' | 'imageUrl'>[] }) => {
-    const doc = _doc ?? document as { pages?: Pick<PsrtPage, 'name' | 'imageUrl'>[] };
-    const next: Record<string, string> = {};
-    for (const p of doc.pages ?? []) {
-      if (!p.imageUrl) continue;
-      let thumb = thumbCache.current.get(p.imageUrl);
-      if (thumb === undefined || thumb === NOT_FOUND_IMAGE_SRC) {
-        try {
-          const resolved = await api.GetAssetDataURI(p.imageUrl);
-          thumb = resolved || NOT_FOUND_IMAGE_SRC;
-          thumbCache.current.set(p.imageUrl, thumb);
-        } catch {
-          thumb = NOT_FOUND_IMAGE_SRC;
-          thumbCache.current.set(p.imageUrl, NOT_FOUND_IMAGE_SRC);
-        }
-      }
-      if (thumb) next[p.name] = thumb;
-    }
-    setThumbs(next);
+  const resetDocument = useCallback((doc: PsrtDocument, path: string) => {
+    undoStack.current = [];
+    redoStack.current = [];
+    setCompiledByPage({});
+    setFilePath(path);
+    setDocument(doc);
+    setActivePageName(doc.pages[0]?.name ?? 'inicio');
+    setSelectedIndex(0);
+    setMultiSelected(new Set([0]));
   }, []);
-
-  useEffect(() => {
-    if (initialDocument) {
-      void loadThumbs(initialDocument);
-    }
-  }, [initialDocument, loadThumbs]);
-
-  useEffect(() => {
-    const page = document?.pages.find((p) => p.name === activePage);
-    const url = page?.imageUrl;
-    if (url) void loadBg(url);
-    else {
-      setBgUri(null);
-      lastBgURL.current = '';
-    }
-  }, [document, activePage, loadBg]);
-
-  const pageImageUri = useMemo(() => {
-    const page = document?.pages.find((p) => p.name === activePage);
-    if (!page?.imageUrl) return null;
-    if (bgUri) return bgUri;
-    return thumbs[activePage] ?? null;
-  }, [bgUri, thumbs, activePage, document]);
 
   const setCompiledPreview = useCallback(
     (page: string, kind: CompiledPreviewKind, uri: string) => {
@@ -338,8 +306,10 @@ export function EditorProvider({
 
   useEffect(() => {
     if (!autoCompile || !document || !activePage) return;
+    if (editSnapshot.current) return;
     if (compileTimer.current) clearTimeout(compileTimer.current);
     compileTimer.current = setTimeout(() => {
+      if (editSnapshot.current) return;
       compilePreviewSvg().catch(() => {});
     }, 500);
     return () => {
@@ -348,17 +318,26 @@ export function EditorProvider({
   }, [document, activePage, autoCompile, compilePreviewSvg]);
 
   useEffect(() => {
-    if (!filePath || !document) return;
-    if (persistPsrtTimer.current) clearTimeout(persistPsrtTimer.current);
-    persistPsrtTimer.current = setTimeout(() => {
-      saveLastPsrt(filePath, '', docJSON());
-    }, 1500);
-    return () => {
-      if (persistPsrtTimer.current) clearTimeout(persistPsrtTimer.current);
-    };
-  }, [document, filePath, docJSON]);
+    const id = setInterval(() => {
+      const doc = documentRef.current;
+      const path = filePathRef.current;
+      if (!doc || !path) return;
+      saveLastPsrt(
+        path,
+        '',
+        JSON.stringify({
+          pages: doc.pages,
+          fonts: doc.fonts,
+          consts: doc.consts,
+          fontLabels: doc.fontLabels,
+        }),
+      );
+    }, AUTO_SAVE_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
+    setActiveDocumentConsts(document?.consts);
     if (!document) return;
     const setConsts = (
       api as typeof api & { SetWebDocumentConsts?: (json: string) => Promise<void> }
@@ -367,74 +346,11 @@ export function EditorProvider({
   }, [document?.consts]);
 
   useEffect(() => {
-    const offAsset = EventsOn('asset:refreshed', () => {
-      thumbCache.current.clear();
-      if (document) void loadThumbs(document);
-    });
     const offErr = EventsOn('error', (...args: unknown[]) => showToast(String(args[0] ?? '')));
     return () => {
-      offAsset();
       offErr();
     };
-  }, [document, loadThumbs, showToast]);
-
-  const openFile = useCallback(async () => {
-    const result = await api.OpenFileDialog();
-    if (!result?.document) return;
-    const doc = parseDocumentJson(result.document);
-    undoStack.current = [];
-    redoStack.current = [];
-    thumbCache.current.clear();
-    lastBgURL.current = '';
-    setCompiledByPage({});
-    setFilePath(result.filePath);
-    setDocument(doc);
-    setActivePageName(doc.pages[0]?.name ?? '');
-    setSelectedIndex(-1);
-    await loadThumbs(doc);
-  }, [loadThumbs]);
-
-  const newFile = useCallback(() => {
-    const doc = createEmptyDocument();
-    undoStack.current = [];
-    redoStack.current = [];
-    thumbCache.current.clear();
-    lastBgURL.current = '';
-    setCompiledByPage({});
-    setFilePath('');
-    setDocument(doc);
-    setActivePageName('inicio');
-    setSelectedIndex(0);
-    setMultiSelected(new Set([0]));
-    setBgUri(null);
-    showToast('Novo documento');
   }, [showToast]);
-
-  const save = useCallback(async () => {
-    if (!document) return;
-    if (!filePath) {
-      await saveAs();
-      return;
-    }
-    const cleaned = sanitizeDocumentStylesForSave(document);
-    replaceDocument(cleaned, { recordUndo: false });
-    const json = JSON.stringify(cleaned);
-    await api.SaveDocumentJSON(json);
-    await api.FormatDocumentJSON(json).then((src: string) => saveLastPsrt(filePath, src));
-    showToast('Saved');
-  }, [document, filePath, replaceDocument, showToast]);
-
-  const saveAs = useCallback(async () => {
-    if (!document) return;
-    const cleaned = sanitizeDocumentStylesForSave(document);
-    replaceDocument(cleaned, { recordUndo: false });
-    const json = JSON.stringify(cleaned);
-    const path = await api.SaveAsDocumentJSON(json);
-    if (!path) return;
-    setFilePath(path);
-    thumbCache.current.clear();
-    showToast('Saved');
-  }, [document, replaceDocument, showToast]);
 
   const saveAsSvg = useCallback(async () => {
     if (!document) return;
@@ -469,21 +385,40 @@ export function EditorProvider({
   const undo = useCallback(() => {
     const prev = undoStack.current.pop();
     if (!prev || !document) return;
-    redoStack.current.push(cloneDocument(document));
-    setDocument(prev);
+    redoStack.current.push(cloneDocument({
+      pages: document.pages,
+      fonts: document.fonts,
+      consts: document.consts,
+      fontLabels: document.fontLabels,
+    }));
+    setDocument({
+      pages: prev.pages,
+      fonts: prev.fonts,
+      consts: prev.consts,
+      fontLabels: prev.fontLabels,
+    } as PsrtDocument);
   }, [document]);
 
   const redo = useCallback(() => {
     const next = redoStack.current.pop();
     if (!next || !document) return;
-    undoStack.current.push(cloneDocument(document));
-    setDocument(next);
+    undoStack.current.push(cloneDocument({
+      pages: document.pages,
+      fonts: document.fonts,
+      consts: document.consts,
+      fontLabels: document.fontLabels,
+    }));
+    setDocument({
+      pages: next.pages,
+      fonts: next.fonts,
+      consts: next.consts,
+      fontLabels: next.fontLabels,
+    } as PsrtDocument);
   }, [document]);
 
   const setActivePage = useCallback((name: string) => {
     setActivePageName(name);
     setSelectedIndex(-1);
-    lastBgURL.current = '';
   }, []);
 
   const addPage = useCallback(
@@ -495,11 +430,15 @@ export function EditorProvider({
         DEFAULT_PAGE_BG_URL,
         '{}',
       );
-      replaceDocument(next);
+      replaceDocument({
+        pages: next.pages,
+        fonts: next.fonts,
+        consts: next.consts,
+        fontLabels: next.fontLabels,
+      } as PsrtDocument);
       setActivePage(name);
-      void loadThumbs(next);
     },
-    [document, replaceDocument, loadThumbs],
+    [document, replaceDocument, setActivePage],
   );
 
   const removePage = useCallback(() => {
@@ -509,8 +448,7 @@ export function EditorProvider({
     const first = next.pages[0]?.name ?? '';
     setActivePage(first);
     setSelectedIndex(-1);
-    void loadThumbs(next);
-  }, [document, activePage, replaceDocument, loadThumbs]);
+  }, [document, activePage, replaceDocument, setActivePage]);
 
   const movePage = useCallback(
     (ref: string, before: boolean) => {
@@ -551,7 +489,12 @@ export function EditorProvider({
   const patchMask = useCallback(
     (index: number, patch: Partial<visualapp.MaskPatch>) => {
       if (!document || !activePage) return;
-      const next = patchMaskInDocument(document, activePage, index, patch);
+      const next = patchMaskInDocument({
+        pages: document.pages,
+        fonts: document.fonts,
+        consts: document.consts,
+        fontLabels: document.fontLabels,
+      }, activePage, index, patch);
       replaceDocument(next, { recordUndo: editSnapshot.current === null });
     },
     [document, activePage, replaceDocument],
@@ -631,35 +574,7 @@ export function EditorProvider({
         setActivePage(patch.name);
       }
     },
-    [document, activePage, replaceDocument],
-  );
-
-  const applyPsrtSource = useCallback(
-    async (text: string) => {
-      const json = await api.ParseDocumentPSRT(text);
-      const doc = parseDocumentJson(json);
-      replaceDocument(doc);
-      if (filePath) saveLastPsrt(filePath, text);
-      const page = doc.pages.find((p) => p.name === activePage);
-      if (!page && doc.pages[0]) setActivePageName(doc.pages[0].name);
-      await loadThumbs(doc);
-    },
-    [activePage, filePath, replaceDocument, loadThumbs],
-  );
-
-  const applyPagePsrtSource = useCallback(
-    async (text: string) => {
-      if (!document || !activePage) return;
-      const pageIdx = document.pages.findIndex((p) => p.name === activePage);
-      const json = await api.MergePageDocumentPSRT(docJSON(), activePage, text);
-      const doc = parseDocumentJson(json);
-      replaceDocument(doc);
-      if (pageIdx >= 0 && doc.pages[pageIdx]?.name !== activePage) {
-        setActivePageName(doc.pages[pageIdx].name);
-      }
-      await loadThumbs(doc);
-    },
-    [document, activePage, docJSON, replaceDocument, loadThumbs],
+    [document, activePage, replaceDocument, setActivePage],
   );
 
   const setTextContentDraft = useCallback((index: number, content: string) => {
@@ -692,7 +607,12 @@ export function EditorProvider({
 
   const beginEdit = useCallback(() => {
     if (document && !editSnapshot.current) {
-      editSnapshot.current = cloneDocument(document);
+      editSnapshot.current = cloneDocument({
+        pages: document.pages,
+        fonts: document.fonts,
+        consts: document.consts,
+        fontLabels: document.fontLabels,
+      });
     }
   }, [document]);
 
@@ -720,15 +640,6 @@ export function EditorProvider({
   const setAutoCompile = useCallback((on: boolean) => {
     setAutoCompileState(on);
     api.SetAutoCompile(on);
-  }, []);
-
-  const refreshPageImage = useCallback(async () => {
-    const page = document?.pages.find((p) => p.name === activePage);
-    if (page?.imageUrl) await api.RefreshAssetURL(page.imageUrl);
-  }, [document, activePage]);
-
-  const refreshAssetURL = useCallback(async (url: string) => {
-    await api.RefreshAssetURL(url);
   }, []);
 
   const addFont = useCallback(
@@ -773,22 +684,22 @@ export function EditorProvider({
 
   const value = useMemo<EditorContextValue>(
     () => ({
-      document,
+      document: {
+        pages: document?.pages,
+        fonts: document?.fonts,
+        consts: document?.consts,
+        fontLabels: document?.fontLabels,
+      } as PsrtDocument,
+      filePath,
       state,
-      bgUri,
-      pageImageUri,
-      thumbs,
       previewTab,
       getPagePreview,
       toast,
       multiSelected,
       propertyMap,
-      openFile,
-      newFile,
-      save,
-      saveAs,
-      saveAsSvg,
-      saveAsHtml,
+      loadDocument,
+      resetDocument,
+      replaceDocument,
       undo,
       redo,
       setActivePage,
@@ -802,8 +713,6 @@ export function EditorProvider({
       patchMask,
       convertBlockKind,
       patchPage,
-      applyPsrtSource,
-      applyPagePsrtSource,
       addText,
       duplicateText,
       removeText,
@@ -822,8 +731,8 @@ export function EditorProvider({
       compilePreviewHtml,
       setAutoCompile,
       setPreviewTab,
-      refreshPageImage,
-      refreshAssetURL,
+      saveAsSvg,
+      saveAsHtml,
       addFont,
       renameFont,
       removeFont,
@@ -836,24 +745,18 @@ export function EditorProvider({
       savingSvg,
       savingPsrt,
       htmlCompileProgress,
-      loadThumbs,
     }),
     [
       document,
+      filePath,
       state,
-      bgUri,
-      pageImageUri,
-      thumbs,
       previewTab,
       getPagePreview,
       toast,
       multiSelected,
-      openFile,
-      newFile,
-      save,
-      saveAs,
-      saveAsSvg,
-      saveAsHtml,
+      loadDocument,
+      resetDocument,
+      replaceDocument,
       undo,
       redo,
       setActivePage,
@@ -867,8 +770,6 @@ export function EditorProvider({
       patchMask,
       convertBlockKind,
       patchPage,
-      applyPsrtSource,
-      applyPagePsrtSource,
       addText,
       duplicateText,
       removeText,
@@ -886,8 +787,8 @@ export function EditorProvider({
       compilePreviewHtml,
       setAutoCompile,
       setPreviewTab,
-      refreshPageImage,
-      refreshAssetURL,
+      saveAsSvg,
+      saveAsHtml,
       addFont,
       renameFont,
       removeFont,
@@ -899,7 +800,6 @@ export function EditorProvider({
       savingSvg,
       savingPsrt,
       htmlCompileProgress,
-      loadThumbs,
     ],
   );
 
