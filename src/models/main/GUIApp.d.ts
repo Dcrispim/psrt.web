@@ -88,7 +88,7 @@ export function ReportClientError(arg1:string,arg2:string,arg3:string):Promise<v
 
 export function Save():Promise<void>;
 
-export function SaveAsDocumentJSON(arg1:string):Promise<string>;
+export function SaveAsDocumentJSON(arg1:string, arg2?:boolean):Promise<string>;
 
 export function SaveDocumentJSON(arg1:string):Promise<void>;
 
