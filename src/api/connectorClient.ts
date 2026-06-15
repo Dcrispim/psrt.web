@@ -15,6 +15,9 @@ import { styleadapter, visualapp } from '@wails/go/models';
 import { extractPageDocument } from '../lib/documentModel';
 import { resolveAssetReference } from '../lib/expandConsts';
 import { isLocalAssetRef } from '../lib/localAssetRef';
+import {
+  getMergedDocumentConsts,
+} from '../lib/resolveDocumentAsset';
 import { fetchAuthenticatedImage } from '../lib/connectorUrl';
 import {
   createHtmlCompileObservers,
@@ -29,6 +32,7 @@ import {
   resolveDocumentForCompile,
 } from '../lib/resolveDocumentAssets';
 import { readFontFileAsDataUri } from '../lib/fontFileDataUri';
+import { buildPsrtForSave } from '../lib/buildPsrtWithSources';
 import type { PsrtDocument } from '../types/document';
 import type { PsrtVariant } from '@psrt/sdk';
 import { getActiveConsts, isConnectorActive, setActiveConsts } from './connectorConfig';
@@ -178,7 +182,10 @@ export async function AdaptTextStyleForWeb(
 
 export async function GetAssetDataURI(url: string): Promise<string> {
   if (!url) return '';
-  const expanded = resolveAssetReference(url, getActiveConsts());
+
+  const mergedConsts = getMergedDocumentConsts();
+  const expanded = resolveAssetReference(url, mergedConsts)?.trim() ?? '';
+
   if (expanded.startsWith('data:')) return expanded;
   if (/^https?:\/\//i.test(expanded)) return expanded;
 
@@ -316,12 +323,17 @@ export async function OpenFileDialog(): Promise<visualapp.OpenFileResult> {
 }
 
 export async function SaveDocumentJSON(docJSON: string): Promise<void> {
-  const psrt = await FormatDocumentJSON(docJSON);
+  const doc = JSON.parse(docJSON) as PsrtDocument;
+  const psrt = await buildPsrtForSave(doc, { includeSources: false });
   downloadPsrt('document.psrt', psrt);
 }
 
-export async function SaveAsDocumentJSON(docJSON: string): Promise<string> {
-  const psrt = await FormatDocumentJSON(docJSON);
+export async function SaveAsDocumentJSON(
+  docJSON: string,
+  includeSources = false,
+): Promise<string> {
+  const doc = JSON.parse(docJSON) as PsrtDocument;
+  const psrt = await buildPsrtForSave(doc, { includeSources });
   const name = 'document.psrt';
   downloadPsrt(name, psrt);
   return name;

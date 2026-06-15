@@ -91,3 +91,14 @@ export interface AdaptEntriesRequest {
 export interface ApiError {
   error: string;
 }
+
+export interface LibraryProject {
+  path: string;
+  title: string;
+  pageCount: number;
+  modifiedAt: string;
+}
+
+export interface LibraryProjectsResponse {
+  projects: LibraryProject[];
+}

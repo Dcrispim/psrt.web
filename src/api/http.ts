@@ -3,6 +3,7 @@ import type {
   ConnectorConfigResponse,
   ConnectorConfigUpdate,
   HealthResponse,
+  LibraryProjectsResponse,
   PairResponse,
 } from './contract';
 import {
@@ -12,6 +13,7 @@ import {
   setSessionToken,
 } from './connectorConfig';
 import { EventsEmit } from '../runtime';
+import { logger } from './logger';
 
 export class ConnectorHttpError extends Error {
   constructor(
@@ -42,15 +44,24 @@ async function parseResponse<T>(res: Response): Promise<T> {
   if (text) {
     try {
       data = JSON.parse(text) as unknown;
-    } catch {
+    } catch (e) {
+      logger('connector', {
+        text,
+        error: e,
+      });
       if (!res.ok) {
         throw new ConnectorHttpError(text || res.statusText, res.status);
+
       }
       return text as T;
     }
   }
   if (!res.ok) {
     const err = data as ApiError | null;
+    logger('connector', {
+      data,
+      error: err?.error ?? res.statusText,
+    });
     throw new ConnectorHttpError(err?.error ?? res.statusText, res.status);
   }
   return data as T;
@@ -115,6 +126,10 @@ export async function connectorFetchBlob(path: string): Promise<Blob> {
     headers: authHeaders(),
   });
   if (res.status === 401) {
+    logger('connector', {
+      status: 401,
+      path,
+    });
     clearSessionToken();
     EventsEmit('connector:unauthorized');
     throw new ConnectorHttpError('unauthorized', 401);
@@ -128,6 +143,11 @@ export async function connectorFetchBlob(path: string): Promise<Blob> {
     } catch {
       /* keep text */
     }
+    logger('connector', {
+      status: res.status,
+      path,
+      error: msg,
+    });
     throw new ConnectorHttpError(msg, res.status);
   }
   return res.blob();
@@ -161,4 +181,8 @@ export async function updateConnectorConfig(
   body: ConnectorConfigUpdate,
 ): Promise<ConnectorConfigResponse> {
   return connectorPut<ConnectorConfigResponse>('/config', body);
+}
+
+export async function listLocalProjects(): Promise<LibraryProjectsResponse> {
+  return connectorGet<LibraryProjectsResponse>('/library/projects');
 }
