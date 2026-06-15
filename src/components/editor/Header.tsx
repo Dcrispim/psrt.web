@@ -1,22 +1,22 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useEditor } from '../../context/useEditor';
+import { useEditorPersistence } from '../../hooks/useEditorPersistence';
 import { useAlertModal } from '../../context/AlertModalContext';
 import { AddConstModal } from './AddConstModal';
 import { AddFontModal } from './AddFontModal';
 import { SaveOptionsModal, type SaveOption } from './SaveOptionsModal';
 import { ConnectorModal } from './ConnectorModal';
+import { LogsModal } from './LogsModal';
 import { useConnector } from '../../context/ConnectorContext';
+import { navigateTo } from '../../lib/hashRoute';
 import { APP_NAME, LOGO_SMALL_SRC } from '../../lib/branding';
 import s from './header.module.css';
+import { logger } from '../../api/logger';
 
 export function Header() {
   const {
     document: editorDoc,
     state,
-    openFile,
-    newFile,
-    save,
-    saveAs,
     saveAsSvg,
     saveAsHtml,
     undo,
@@ -36,14 +36,15 @@ export function Header() {
     savingHtml,
     compileHtml,
     previewTab,
-    loadThumbs,
   } = useEditor();
+  const { openFile, newFile, save, saveAs } = useEditorPersistence();
   const { status } = useConnector();
   const { confirm, prompt } = useAlertModal();
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [constModalOpen, setConstModalOpen] = useState(false);
   const [fontModalOpen, setFontModalOpen] = useState(false);
   const [connectorModalOpen, setConnectorModalOpen] = useState(false);
+  const [logsModalOpen, setLogsModalOpen] = useState(false);
 
   const pages = state?.pages ?? [];
   const activePage = state?.activePage ?? '';
@@ -61,14 +62,24 @@ export function Header() {
       }
       if (key === 'o') {
         e.preventDefault();
-        openFile().catch((err) => showToast(String(err)));
+        openFile().catch((err) => {
+          logger('Header', {
+            error: err,
+          });
+          showToast(String(err));
+        });
       }
       if (key === 's' && e.shiftKey) {
         e.preventDefault();
         setSaveModalOpen(true);
       } else if (key === 's') {
         e.preventDefault();
-        save().catch((err) => showToast(String(err)));
+        save().catch((err) => {
+          logger('Header', {
+            error: err,
+          });
+          showToast(String(err));
+        });
       }
       if (key === 'z') {
         e.preventDefault();
@@ -83,15 +94,20 @@ export function Header() {
   );
 
   const handleSaveOption = useCallback(
-    (option: SaveOption, variantFiles: File[]) => {
+    (option: SaveOption, variantFiles: File[], includeSources: boolean) => {
       setSaveModalOpen(false);
       const run =
         option === 'psrt'
-          ? saveAs()
+          ? saveAs(includeSources)
           : option === 'svg'
             ? saveAsSvg()
             : saveAsHtml(variantFiles);
-      run.catch((err) => showToast(String(err)));
+      run.catch((err) => {
+        logger('Header', {
+          error: err,
+        });
+        showToast(String(err));
+      });
     },
     [saveAs, saveAsSvg, saveAsHtml, showToast],
   );
@@ -161,7 +177,12 @@ export function Header() {
             type="button"
             className={s.btn}
             title="Abrir (Ctrl+O)"
-            onClick={() => openFile().catch((err) => showToast(String(err)))}
+            onClick={() => openFile().catch((err) => {
+              logger('Header', {
+                error: err.message,
+              });
+              showToast(String(err));
+            })}
           >
             <Icon name="folder" /> <span>Abrir</span>
           </button>
@@ -170,9 +191,30 @@ export function Header() {
             className={`${s.btn} ${s.primary}`}
             title="Salvar (Ctrl+S)"
             disabled={!hasDoc}
-            onClick={() => save().catch((err) => showToast(String(err)))}
+            onClick={() => save().catch((err) => {
+              logger('Header', {
+                error: err,
+              });
+              showToast(String(err));
+            })}
           >
             <Icon name="save" /> <span>Salvar</span>
+          </button>
+          <button
+            type="button"
+            className={s.btn}
+            title="Modo leitura (webtoon)"
+            onClick={() => navigateTo('reader')}
+          >
+            <span>Reader</span>
+          </button>
+          <button
+            type="button"
+            className={s.btn}
+            title="Ver logs da aplicação"
+            onClick={() => setLogsModalOpen(true)}
+          >
+            <Icon name="logs" /> <span>Logs</span>
           </button>
           <button
             type="button"
@@ -244,7 +286,12 @@ export function Header() {
             title="Download SVG"
             // TODO: Implement js-sdk export svg
             disabled={true}
-            onClick={() => saveAsSvg().catch((err) => showToast(String(err)))}
+            onClick={() => saveAsSvg().catch((err) => {
+              logger('Header', {
+                error: err,
+              });
+              showToast(String(err));
+            })}
           >
             <Icon name="svg" /> SVG
           </button>
@@ -254,7 +301,12 @@ export function Header() {
             title="Preview HTML da página"
             aria-pressed={previewTab === 'html'}
             disabled={!hasDoc || savingHtml}
-            onClick={() => compileHtml().catch((err) => showToast(String(err)))}
+            onClick={() => compileHtml().catch((err) => {
+              logger('Header', {
+                error: err,
+              });
+              showToast(String(err));
+            })}
           >
             <Icon name="html" /> HTML
           </button>
@@ -322,18 +374,6 @@ export function Header() {
             onClick={handleRemovePage}
           >
             <Icon name="trash" />
-          </button>
-
-          <button
-            type="button"
-            className={s.iconBtn}
-            title="Atualizar thumbnais"
-
-            onClick={() => {
-              void loadThumbs({ pages: state?.pages?.map((p) => ({ name: p.name, imageUrl: p.imageUrl ?? '' })) });
-            }}
-          >
-            <Icon name="html" />
           </button>
         </div>
 
@@ -418,6 +458,7 @@ export function Header() {
         open={connectorModalOpen}
         onClose={() => setConnectorModalOpen(false)}
       />
+      <LogsModal open={logsModalOpen} onClose={() => setLogsModalOpen(false)} />
     </header>
   );
 }
@@ -482,6 +523,18 @@ function Icon({ name }: { name: string }) {
     font: (
       <>
         <path d="M4 20h16M6 4v8l6-4 6 4V4" />
+      </>
+    ),
+    attachment: (
+      <>
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3" />
+      </>
+    ),
+    logs: (
+      <>
+        <path d="M4 6h16M4 12h16M4 18h10" />
+        <path d="M18 16v4M16 18h4" />
       </>
     ),
   };

@@ -11,7 +11,7 @@ const FORMATS: { id: SaveOption; label: string; hint: string }[] = [
 
 export interface SaveOptionsModalProps {
   open: boolean;
-  onSave: (option: SaveOption, variants: File[]) => void;
+  onSave: (option: SaveOption, variants: File[], includeSources: boolean) => void;
   onCancel: () => void;
 }
 
@@ -25,6 +25,7 @@ export function SaveOptionsModal({ open, onSave, onCancel }: SaveOptionsModalPro
   const titleId = useId();
   const [expanded, setExpanded] = useState<SaveOption | null>('psrt');
   const [variants, setVariants] = useState<Record<SaveOption, File[]>>(emptyVariants);
+  const [includeSources, setIncludeSources] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -39,6 +40,7 @@ export function SaveOptionsModal({ open, onSave, onCancel }: SaveOptionsModalPro
     if (!open) {
       setExpanded('psrt');
       setVariants(emptyVariants());
+      setIncludeSources(false);
     }
   }, [open]);
 
@@ -113,6 +115,17 @@ export function SaveOptionsModal({ open, onSave, onCancel }: SaveOptionsModalPro
 
                 {isOpen && (
                   <div className={s.body}>
+                    {f.id === 'psrt' && (
+                      <label className={s.sourceCheck}>
+                        <input
+                          type="checkbox"
+                          checked={includeSources}
+                          onChange={(e) => setIncludeSources(e.target.checked)}
+                        />
+                        <span>Incluir $SOURCE (imagens e fontes embutidas)</span>
+                      </label>
+                    )}
+
                     {f.id === 'html' && (
                       <p className={s.variantNote}>
                         O documento atual é a variante principal. Arquivos extras entram no HTML
@@ -163,7 +176,7 @@ export function SaveOptionsModal({ open, onSave, onCancel }: SaveOptionsModalPro
                         type="button"
                         className={`${s.confirm} ${f.id !== 'html' ? s.confirmFull : ''}`}
                         onClick={() => {
-                          onSave(f.id, variants[f.id]);
+                          onSave(f.id, variants[f.id], f.id === 'psrt' ? includeSources : false);
                         }}
                       >
                         Confirmar

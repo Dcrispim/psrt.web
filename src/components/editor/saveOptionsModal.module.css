@@ -177,6 +177,23 @@
   color: var(--text);
 }
 
+.sourceCheck {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.4;
+  cursor: pointer;
+  user-select: none;
+}
+.sourceCheck input {
+  margin: 2px 0 0;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+
 .variantNote {
   margin: 8px 0 0;
   font-size: 11px;
