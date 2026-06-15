@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as api from '@wails/go/main/GUIApp';
 import { useEditor } from '../context/useEditor';
+import { useEditorPersistence } from '../hooks/useEditorPersistence';
 import { useAlertModal } from '../context/AlertModalContext';
 import type { EditorSidebarProps } from '../components/editor/Sidebar';
 import {
@@ -11,6 +12,7 @@ import {
   singleStylePropPatch,
 } from '../lib/textBlockAdapter';
 import { toggleTextSelectionMarkup, type InlineWrapKind } from '../lib/inlineMarkup';
+import { logger } from '../api/logger';
 
 const CONTENT_DEBOUNCE_MS = 400;
 const PSRT_APPLY_MS = 400;
@@ -27,15 +29,14 @@ export function useTextEditorSidebar(): EditorSidebarProps | null {
     addText,
     duplicateText,
     removeText,
-    applyPagePsrtSource,
     beginEdit,
     endEdit,
-    refreshPageImage,
     showToast,
     setTextContentDraft,
     clearTextContentDraft,
     getTextDisplayContent,
   } = useEditor();
+  const { applyPagePsrtSource, refreshPageImage, editorApiJson } = useEditorPersistence();
   const { confirm } = useAlertModal();
 
   const pageName = state?.activePage ?? '';
@@ -83,14 +84,14 @@ export function useTextEditorSidebar(): EditorSidebarProps | null {
     }
     try {
       const src = await api.FormatPageDocumentJSON(
-        JSON.stringify(document),
+        editorApiJson(document),
         pageName,
       );
       setPsrtValue(src);
     } catch (e) {
       showToast(String(e));
     }
-  }, [document, pageName, showToast]);
+  }, [document, pageName, showToast, editorApiJson]);
 
   useEffect(() => {
     if (psrtDirty.current || psrtFocused.current) return;
@@ -104,6 +105,9 @@ export function useTextEditorSidebar(): EditorSidebarProps | null {
     try {
       await applyPagePsrtSource(body);
     } catch (e) {
+      logger('useTextEditorSidebar', {
+        error: e,
+      });
       showToast(String(e));
     }
   }, [applyPagePsrtSource, pageName, showToast]);
@@ -324,7 +328,12 @@ export function useTextEditorSidebar(): EditorSidebarProps | null {
   );
 
   const onRefreshPageImage = useCallback(() => {
-    refreshPageImage().catch((e) => showToast(String(e)));
+    refreshPageImage().catch((e) => {
+      logger('useTextEditorSidebar', {
+        error: e,
+      });
+      showToast(String(e));
+    });
   }, [refreshPageImage, showToast]);
 
   const onPsrtBlur = useCallback(async () => {
