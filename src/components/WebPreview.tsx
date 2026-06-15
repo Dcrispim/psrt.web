@@ -4,6 +4,7 @@ import '@psrt/react-image/style.css';
 import { GetAssetDataURI } from '@wails/go/main/GUIApp';
 import { useEditor } from '../context/useEditor';
 import { useDocumentFonts } from '../hooks/useDocumentFonts';
+import { useEditorPagePreviewDocument } from '../hooks/useEditorPagePreviewDocument';
 import { clientPointToImagePercent } from '../lib/imagePointerCoords';
 import { NOT_FOUND_IMAGE_SRC } from '../lib/notFoundImage';
 import { TextBlock } from './TextBlock';
@@ -35,7 +36,7 @@ export function WebPreview({ variant = 'footer' }: { variant?: 'footer' | 'canva
     return uri || NOT_FOUND_IMAGE_SRC;
   }, []);
 
-  useDocumentFonts(document?.fonts, resolveAssetUrl, document?.fontLabels);
+  useDocumentFonts(document?.fonts, document?.fontLabels, resolveAssetUrl);
 
   const placeSelectedTextAtClient = useCallback(
     (clientX: number, clientY: number) => {
@@ -86,6 +87,7 @@ export function WebPreview({ variant = 'footer' }: { variant?: 'footer' | 'canva
   );
 
   const activePage = state?.activePage ?? '';
+  const previewDocument = useEditorPagePreviewDocument(document, activePage);
   const selectedIndex = state?.selectedIndex ?? -1;
   const texts = state?.texts ?? [];
   const masks = state?.masks ?? [];
@@ -159,7 +161,7 @@ export function WebPreview({ variant = 'footer' }: { variant?: 'footer' | 'canva
     [getTextDisplayContent, isSelected, maskByIndex, textByIndex],
   );
 
-  if (!document || !activePage) {
+  if (!previewDocument || !activePage) {
     return <div className="preview-web-empty">Open a page to preview</div>;
   }
 
@@ -180,14 +182,13 @@ export function WebPreview({ variant = 'footer' }: { variant?: 'footer' | 'canva
         onPointerDownCapture={isCanvas ? onMiddleDoubleClickCapture : undefined}
       >
         <PSRTImage
-          psrt={document}
+          psrt={previewDocument}
           pageName={activePage}
           scale={webZoom}
           enableEditor={isCanvas && !showInteractionOverlay}
           showTexts={!isCanvas || webTextsVisible}
           fixedReferenceSize={isCanvas}
           fallbackImage={NOT_FOUND_IMAGE_SRC}
-          resolveAssetUrl={resolveAssetUrl}
           getBlockContent={getTextDisplayContent}
           applyEditorStyles={isCanvas ? applyEditorStyles : undefined}
           onSelectBlock={!isCanvas ? selectText : undefined}

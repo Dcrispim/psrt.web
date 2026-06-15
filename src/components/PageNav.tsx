@@ -1,9 +1,9 @@
 import { useEditor } from '../context/useEditor';
+import { useEditorPageThumbs } from '../hooks/useEditorPageThumbs';
 
 export function PageNav() {
   const {
     state,
-    thumbs,
     setActivePage,
     addPage,
     removePage,
@@ -11,6 +11,7 @@ export function PageNav() {
     pageMoveRef,
     setPageMoveRef,
   } = useEditor();
+  const thumbs = useEditorPageThumbs();
 
   const pages = state?.pages ?? [];
 

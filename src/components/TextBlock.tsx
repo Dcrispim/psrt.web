@@ -1,4 +1,4 @@
-import React, { useRef, useState, type PointerEvent } from 'react';
+import React, { useCallback, useRef, useState, type PointerEvent } from 'react';
 import { visualapp } from '@wails/go/models';
 import { useEditor } from '../context/useEditor';
 import { snapCoord } from '../lib/applyStyle';
@@ -53,10 +53,31 @@ export function TextBlock({
     origTs: number;
     rect: DOMRect;
   } | null>(null);
+  const pendingPatchRef = useRef<Partial<visualapp.TextPatch> | null>(null);
+  const patchFrameRef = useRef(0);
+
+  const flushPatch = useCallback(() => {
+    patchFrameRef.current = 0;
+    const pending = pendingPatchRef.current;
+    if (!pending) return;
+    pendingPatchRef.current = null;
+    patchText(text.index, pending);
+  }, [patchText, text.index]);
+
+  const schedulePatch = useCallback(
+    (patch: Partial<visualapp.TextPatch>) => {
+      pendingPatchRef.current = { ...(pendingPatchRef.current ?? {}), ...patch };
+      if (!patchFrameRef.current) {
+        patchFrameRef.current = requestAnimationFrame(flushPatch);
+      }
+    },
+    [flushPatch],
+  );
 
   const [tooltip, setTooltip] = useState('');
 
   const onPointerMoveBlock = (e: PointerEvent) => {
+    if (dragRef.current) return;
     const stage = stageRef.current;
     if (!stage) return;
     const rect = stage.getBoundingClientRect();
@@ -100,19 +121,19 @@ export function TextBlock({
     const dx = ((e.clientX - d.startX) / d.rect.width) * 100;
     const dy = ((e.clientY - d.startY) / d.rect.height) * 100;
     if (d.mode === 'move') {
-      patchText(text.index, { x: snapCoord(d.origX + dx), y: snapCoord(d.origY + dy) });
+      schedulePatch({ x: snapCoord(d.origX + dx), y: snapCoord(d.origY + dy) });
     } else if (d.mode === 'width') {
-      patchText(text.index, { width: snapCoord(Math.max(1, d.origW + dx)) });
+      schedulePatch({ width: snapCoord(Math.max(1, d.origW + dx)) });
     } else if (d.mode === 'textSize') {
       const delta = dy * 0.2;
       if (isMaskTextBlock(displayContent)) {
-        patchText(text.index, {
+        schedulePatch({
           styleSet: {
             height: `${snapCoord(Math.max(0.5, d.origTs + delta))}%`,
           },
         });
       } else {
-        patchText(text.index, {
+        schedulePatch({
           textSize: snapCoord(Math.max(0.5, d.origTs + delta)),
         });
       }
@@ -121,6 +142,11 @@ export function TextBlock({
 
   const onPointerUp = (e: PointerEvent) => {
     (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    if (patchFrameRef.current) {
+      cancelAnimationFrame(patchFrameRef.current);
+      patchFrameRef.current = 0;
+    }
+    flushPatch();
     dragRef.current = null;
     void endEdit();
   };

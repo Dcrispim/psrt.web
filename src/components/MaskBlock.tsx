@@ -1,4 +1,4 @@
-import React, { useRef, useState, type PointerEvent } from 'react';
+import React, { useCallback, useRef, useState, type PointerEvent } from 'react';
 import { visualapp } from '@wails/go/models';
 import { useEditor } from '../context/useEditor';
 import { snapCoord } from '../lib/applyStyle';
@@ -40,15 +40,41 @@ export function MaskBlock({
     origH: number;
     rect: DOMRect;
   } | null>(null);
+  const pendingPatchRef = useRef<Partial<visualapp.MaskPatch> | null>(null);
+  const patchFrameRef = useRef(0);
+
+  const flushPatch = useCallback(() => {
+    patchFrameRef.current = 0;
+    const pending = pendingPatchRef.current;
+    if (!pending) return;
+    pendingPatchRef.current = null;
+    patchMask(mask.index, pending);
+  }, [patchMask, mask.index]);
+
+  const schedulePatch = useCallback(
+    (patch: Partial<visualapp.MaskPatch>) => {
+      pendingPatchRef.current = { ...(pendingPatchRef.current ?? {}), ...patch };
+      if (!patchFrameRef.current) {
+        patchFrameRef.current = requestAnimationFrame(flushPatch);
+      }
+    },
+    [flushPatch],
+  );
 
   const [tooltip, setTooltip] = useState('');
 
   const onPointerMoveBlock = (e: PointerEvent) => {
+
+    if (dragRef.current) return;
     const stage = stageRef.current;
+    console.log('stage', stage);
     if (!stage) return;
     const rect = stage.getBoundingClientRect();
+    console.log('rect', rect);
     const px = (((e.clientX - rect.left) / rect.width) * 100).toFixed(1);
+    console.log('px', px);
     const py = (((e.clientY - rect.top) / rect.height) * 100).toFixed(1);
+    console.log('py', py);
     setTooltip(`#${mask.index}  x:${mask.x}% y:${mask.y}%  (${px}%, ${py}%)`);
   };
 
@@ -78,17 +104,22 @@ export function MaskBlock({
     const dx = ((e.clientX - d.startX) / d.rect.width) * 100;
     const dy = ((e.clientY - d.startY) / d.rect.height) * 100;
     if (d.mode === 'move') {
-      patchMask(mask.index, { x: snapCoord(d.origX + dx), y: snapCoord(d.origY + dy) });
+      schedulePatch({ x: snapCoord(d.origX + dx), y: snapCoord(d.origY + dy) });
     } else if (d.mode === 'width') {
-      patchMask(mask.index, { width: snapCoord(Math.max(1, d.origW + dx)) });
+      schedulePatch({ width: snapCoord(Math.max(1, d.origW + dx)) });
     } else if (d.mode === 'height') {
       const delta = dy * 0.2;
-      patchMask(mask.index, { height: snapCoord(Math.max(0.5, d.origH + delta)) });
+      schedulePatch({ height: snapCoord(Math.max(0.5, d.origH + delta)) });
     }
   };
 
   const onPointerUp = (e: PointerEvent) => {
     (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    if (patchFrameRef.current) {
+      cancelAnimationFrame(patchFrameRef.current);
+      patchFrameRef.current = 0;
+    }
+    flushPatch();
     dragRef.current = null;
     void endEdit();
   };

@@ -1,21 +1,16 @@
 import { useEditor } from '../context/useEditor';
+import { useEditorPageThumbs } from '../hooks/useEditorPageThumbs';
 import { FallbackImage } from './FallbackImage';
-import { useEffect } from 'react';
 
 export function PageThumbnailsSidebar() {
-  const { state, thumbs, setActivePage, loadThumbs } = useEditor();
+  const { state, setActivePage } = useEditor();
+  const thumbs = useEditorPageThumbs();
   const pages = state?.pages ?? [];
   const activePage = state?.activePage ?? '';
 
   if (pages.length === 0) {
     return <aside className="page-thumbs-sidebar" aria-label="Páginas" />;
   }
-
-
-  useEffect(() => {
-    void loadThumbs({ pages: pages.map((p) => ({ name: p.name, imageUrl: p.imageUrl ?? '' })) });
-  }, [pages, loadThumbs]);
-
 
   return (
     <aside className="page-thumbs-sidebar" aria-label="Páginas">
@@ -39,7 +34,6 @@ export function PageThumbnailsSidebar() {
                 className="page-thumb__img"
                 src={thumb ?? undefined}
                 alt=""
-                draggable={false}
               />
               <span className="page-thumb__label">{page.name}</span>
             </button>
