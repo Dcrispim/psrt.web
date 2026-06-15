@@ -4,10 +4,12 @@ import { EditorProvider } from './context/EditorContext';
 import { AlertModalProvider } from './context/AlertModalContext';
 import { ConnectorProvider } from './context/ConnectorContext';
 import { App } from './App';
+import { ReaderApp } from './reader/ReaderApp';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { AlertModal } from './components/editor/AlertModal';
-import { parseDocumentJson } from './lib/documentModel';
+import { parseDocumentJson, stripSourcesFromDocument } from './lib/documentModel';
 import { initPsrt } from '@psrt/sdk';
+import { getHashRoute, subscribeHashRoute, type AppRoute } from './lib/hashRoute';
 import { loadDraft, type StoredDraft } from './services/documentStore';
 import {
   fileBaseName,
@@ -108,7 +110,9 @@ function Bootstrap() {
     return <LoadingScreen message="Carregando editor…" />;
   }
 
-  const initialDocument = draft ? parseDocumentJson(draft.documentJson) : undefined;
+  const initialDocument = draft
+    ? stripSourcesFromDocument(parseDocumentJson(draft.documentJson))
+    : undefined;
 
   return (
     <StrictMode>
@@ -128,4 +132,44 @@ function Bootstrap() {
   );
 }
 
-createRoot(document.getElementById('root')!).render(<Bootstrap />);
+function ReaderBootstrap() {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      await initPsrt();
+      if (!cancelled) setReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!ready) {
+    return <LoadingScreen message="Carregando leitor…" />;
+  }
+
+  return (
+    <StrictMode>
+      <AppErrorBoundary>
+        <ConnectorProvider>
+          <ReaderApp />
+        </ConnectorProvider>
+      </AppErrorBoundary>
+    </StrictMode>
+  );
+}
+
+function RootRouter() {
+  const [route, setRoute] = useState<AppRoute>(() => getHashRoute());
+
+  useEffect(() => subscribeHashRoute(setRoute), []);
+
+  if (route === 'reader') {
+    return <ReaderBootstrap />;
+  }
+  return <Bootstrap />;
+}
+
+createRoot(document.getElementById('root')!).render(<RootRouter />);

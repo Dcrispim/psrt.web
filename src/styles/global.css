@@ -1059,3 +1059,21 @@ input[type='checkbox'] {
 .page-select option {
   padding-left: 24px;
 }
+
+@media (max-width: 768px) {
+  .page-thumbs-sidebar {
+    display: none;
+  }
+
+  .properties {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    width: 100% !important;
+    max-width: none;
+  }
+
+  .properties-resize-handle {
+    display: none;
+  }
+}

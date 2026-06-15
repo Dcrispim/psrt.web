@@ -28,6 +28,7 @@ export interface PsrtPage {
   masks?: PsrtMask[];
 }
 
+/** Editor document — layout and refs only (no embedded payloads). */
 export interface PsrtDocument {
   pages: PsrtPage[];
   fonts: string[];
