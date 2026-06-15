@@ -23,6 +23,7 @@ import {
 } from '../api/http';
 import { clearImageBlobCache } from '../lib/connectorUrl';
 import { EventsOn } from '../runtime';
+import { logger } from '../api/logger';
 
 const URL_KEY = 'psrt-connector:url';
 
@@ -174,6 +175,9 @@ export function ConnectorProvider({ children }: { children: ReactNode }) {
 export function useConnector(): ConnectorContextValue {
   const ctx = useContext(ConnectorContext);
   if (!ctx) {
+    logger('connector', {
+      error: 'useConnector must be used within ConnectorProvider',
+    });
     throw new Error('useConnector must be used within ConnectorProvider');
   }
   return ctx;

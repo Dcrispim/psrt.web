@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { nextOpenSectionsQueue, persistOpenSectionsQueue, readOpenSectionsQueue } from "../Sections";
+import { logger } from "../../../api/logger";
 
 export interface SectionQueueContextValue {
   openQueue: string[];
@@ -20,6 +21,9 @@ const SectionQueueContext = createContext<SectionQueueContextValue | null>(null)
 export function useSectionQueue(): SectionQueueContextValue {
   const ctx = useContext(SectionQueueContext);
   if (!ctx) {
+    logger('sectionQueue', {
+      error: 'useSectionQueue must be used within SectionQueueProvider',
+    });
     throw new Error("useSectionQueue must be used within SectionQueueProvider");
   }
   return ctx;

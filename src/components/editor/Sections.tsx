@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import s from "./sidebar.module.css";
-import { IconAlignCenter, IconChevron, IconPin, IconVTop } from "./icons";
+import { IconChevron, IconPin } from "./icons";
 
 const STORAGE_PREFIX = "psrt-sidebar-section-";
 export const MAX_OPEN_SECTIONS = 2;

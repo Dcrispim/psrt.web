@@ -5,6 +5,7 @@ import { isLocalAssetRef } from './localAssetRef';
 import { NOT_FOUND_IMAGE_SRC } from './notFoundImage';
 import { prepareDocumentFontsForCompile } from './documentFonts';
 import type { PsrtDocument } from '../types/document';
+import { logger } from '../api/logger';
 
 function isHttpUrl(value: string): boolean {
   return /^https?:\/\//i.test(value);
@@ -47,7 +48,13 @@ async function getNotFoundDataUri(): Promise<string> {
   if (notFoundDataUri) return notFoundDataUri;
   try {
     const res = await fetch(NOT_FOUND_IMAGE_SRC);
-    if (!res.ok) throw new Error('not found asset missing');
+    if (!res.ok) {
+      logger('resolveDocumentAssets', {
+        status: res.status,
+        error: 'not found asset missing',
+      });
+      throw new Error('not found asset missing');
+    }
     const blob = await res.blob();
     notFoundDataUri = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();

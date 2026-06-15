@@ -30,12 +30,16 @@ import {
 } from "../types";
 import { shadowIsActive } from "./summaries";
 import type { PropertiesPanelContextValue, PropertiesPanelProps } from "./types";
+import { logger } from "../../../api/logger";
 
 const PropertiesPanelContext = createContext<PropertiesPanelContextValue | null>(null);
 
 export function usePropertiesPanel(): PropertiesPanelContextValue {
   const ctx = useContext(PropertiesPanelContext);
   if (!ctx) {
+    logger('propertiesPanel', {
+      error: 'usePropertiesPanel must be used within PropertiesPanelProvider',
+    });
     throw new Error("usePropertiesPanel must be used within PropertiesPanelProvider");
   }
   return ctx;

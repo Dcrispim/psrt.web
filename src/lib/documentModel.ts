@@ -6,6 +6,7 @@ import { styleStringValue } from './parseStyle';
 import { isFontBinaryDataUri } from './documentFonts';
 import { removeFontLabel, sanitizeFontLabel, setFontLabel } from './fontLabels';
 import { normalizeDocumentFontUrl } from './googleFontsUrl';
+import { logger } from '../api/logger';
 
 function applyStyleSet(
   obj: Record<string, unknown>,
@@ -32,13 +33,37 @@ function applyStylePatch(
   }
 }
 
-export function cloneDocument(doc: PsrtDocument): PsrtDocument {
-  return structuredClone(doc);
+export function cloneDocument({
+  pages,
+  fonts,
+  consts,
+  fontLabels,
+}: {
+  pages: PsrtPage[];
+  fonts: string[];
+  consts: Record<string, string>;
+  fontLabels?: Record<string, string>;
+}): PsrtDocument {
+  return {
+    pages: structuredClone(pages),
+    fonts: fonts,
+    consts: consts,
+    fontLabels: fontLabels,
+  };
+}
+
+/** Strips $SOURCE payloads after parse — editor never holds them. */
+export function stripSourcesFromDocument(doc: PsrtDocument & { sources?: Record<string, string> }): PsrtDocument {
+  const { sources: _removed, ...editable } = doc;
+  return editable;
 }
 
 export function extractPageDocument(fullDoc: PsrtDocument, pageName: string): PsrtDocument {
   const page = fullDoc.pages.find((p) => p.name === pageName);
   if (!page) {
+    logger('documentModel', {
+      error: `page ${pageName} not found`,
+    });
     throw new Error(`page ${pageName} not found`);
   }
   return {
@@ -264,29 +289,37 @@ export function patchMaskInDocument(
   index: number,
   patch: Partial<visualapp.MaskPatch>,
 ): PsrtDocument {
-  let next = ensureMaskBlockInDocument(doc, pageName, index);
-  next = cloneDocument(next);
-  const page = next.pages.find((p) => p.name === pageName);
-  if (!page) return next;
-  const m = pageMasks(page).find((x) => x.index === index);
-  if (!m) return next;
-
-  if (patch.x !== undefined) m.x = snapCoord(patch.x);
-  if (patch.y !== undefined) m.y = snapCoord(patch.y);
-  if (patch.width !== undefined) m.width = snapCoord(Math.max(1, patch.width));
-  if (patch.height !== undefined) m.height = snapCoord(Math.max(0.5, patch.height));
-  if (patch.imageRef !== undefined) m.imageRef = patch.imageRef;
-
-  if (
-    (patch.styleSet && Object.keys(patch.styleSet).length > 0) ||
-    patch.styleRemove?.length
-  ) {
-    const obj = parseStyleObject(m.style);
-    applyStylePatch(obj, patch.styleSet, patch.styleRemove);
-    m.style = obj;
-  }
-
-  return next;
+  const ensured = ensureMaskBlockInDocument(doc, pageName, index);
+  let changed = false;
+  const pages = ensured.pages.map((page) => {
+    if (page.name !== pageName) return page;
+    const masks = pageMasks(page);
+    let pageChanged = false;
+    const nextMasks = masks.map((m) => {
+      if (m.index !== index) return m;
+      pageChanged = true;
+      changed = true;
+      const next = { ...m };
+      if (patch.x !== undefined) next.x = snapCoord(patch.x);
+      if (patch.y !== undefined) next.y = snapCoord(patch.y);
+      if (patch.width !== undefined) next.width = snapCoord(Math.max(1, patch.width));
+      if (patch.height !== undefined) next.height = snapCoord(Math.max(0.5, patch.height));
+      if (patch.imageRef !== undefined) next.imageRef = patch.imageRef;
+      if (
+        (patch.styleSet && Object.keys(patch.styleSet).length > 0) ||
+        patch.styleRemove?.length
+      ) {
+        const obj = parseStyleObject(next.style);
+        applyStylePatch(obj, patch.styleSet, patch.styleRemove);
+        next.style = obj;
+      }
+      return next;
+    });
+    if (!pageChanged) return page;
+    return { ...page, masks: nextMasks };
+  });
+  if (!changed) return ensured;
+  return { ...ensured, pages };
 }
 
 export function patchTextInDocument(
@@ -295,31 +328,38 @@ export function patchTextInDocument(
   index: number,
   patch: Partial<visualapp.TextPatch>,
 ): PsrtDocument {
-  const next = cloneDocument(doc);
-  const page = next.pages.find((p) => p.name === pageName);
-  if (!page) return next;
-  const t = pageTexts(page).find((x) => x.index === index);
-  if (!t) return next;
-
-  if (patch.content !== undefined) {
-    t.content = patch.append ? `${t.content}${patch.content}` : patch.content;
-  }
-  if (patch.x !== undefined) t.x = snapCoord(patch.x);
-  if (patch.y !== undefined) t.y = snapCoord(patch.y);
-  if (patch.width !== undefined) t.width = snapCoord(Math.max(1, patch.width));
-  if (patch.textSize !== undefined) t.textSize = snapCoord(Math.max(0.5, patch.textSize));
-  if (patch.imageRef !== undefined) t.imageRef = patch.imageRef;
-
-  if (
-    (patch.styleSet && Object.keys(patch.styleSet).length > 0) ||
-    patch.styleRemove?.length
-  ) {
-    const obj = parseStyleObject(t.style);
-    applyStylePatch(obj, patch.styleSet, patch.styleRemove);
-    t.style = obj;
-  }
-
-  return next;
+  let changed = false;
+  const pages = doc.pages.map((page) => {
+    if (page.name !== pageName) return page;
+    let pageChanged = false;
+    const texts = pageTexts(page).map((t) => {
+      if (t.index !== index) return t;
+      pageChanged = true;
+      changed = true;
+      const next = { ...t };
+      if (patch.content !== undefined) {
+        next.content = patch.append ? `${t.content}${patch.content}` : patch.content;
+      }
+      if (patch.x !== undefined) next.x = snapCoord(patch.x);
+      if (patch.y !== undefined) next.y = snapCoord(patch.y);
+      if (patch.width !== undefined) next.width = snapCoord(Math.max(1, patch.width));
+      if (patch.textSize !== undefined) next.textSize = snapCoord(Math.max(0.5, patch.textSize));
+      if (patch.imageRef !== undefined) next.imageRef = patch.imageRef;
+      if (
+        (patch.styleSet && Object.keys(patch.styleSet).length > 0) ||
+        patch.styleRemove?.length
+      ) {
+        const obj = parseStyleObject(next.style);
+        applyStylePatch(obj, patch.styleSet, patch.styleRemove);
+        next.style = obj;
+      }
+      return next;
+    });
+    if (!pageChanged) return page;
+    return { ...page, texts };
+  });
+  if (!changed) return doc;
+  return { ...doc, pages };
 }
 
 export function patchPageInDocument(
@@ -403,7 +443,7 @@ export function addFontToDocument(
   const isDuplicate = next.fonts.some(
     (f) => f === stored || f === trimmed || normalizeDocumentFontUrl(f) === stored,
   );
-  if (!isDuplicate) next.fonts.push(stored);
+  if (!isDuplicate) next.fonts = [...next.fonts, stored];
 
   if (label?.trim()) {
     return setFontLabel(next, stored, sanitizeFontLabel(label));
@@ -440,14 +480,17 @@ export function addConstToDocument(
   value: string,
 ): PsrtDocument {
   const next = cloneDocument(doc);
-  if (!next.consts) next.consts = {};
-  next.consts[name] = value;
+  next.consts = { ...(next.consts ?? {}), [name]: value };
   return next;
 }
 
 export function removeConstFromDocument(doc: PsrtDocument, name: string): PsrtDocument {
   const next = cloneDocument(doc);
-  if (next.consts) delete next.consts[name];
+  if (next.consts) {
+    const consts = { ...next.consts };
+    delete consts[name];
+    next.consts = consts;
+  }
   return next;
 }
 

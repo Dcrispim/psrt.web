@@ -2,7 +2,6 @@ import { useCallback, useEffect, useId, useState } from 'react';
 import { DEFAULT_CONNECTOR_URL } from '../../api/contract';
 import { useConnector } from '../../context/ConnectorContext';
 import s from './assetModal.module.css';
-import { useEditor } from '../../context/useEditor';
 
 interface ConnectorModalProps {
   open: boolean;
@@ -27,7 +26,6 @@ export function ConnectorModal({ open, onClose, onToast }: ConnectorModalProps) 
     loadConfig,
     saveConfig,
   } = useConnector();
-  const { loadThumbs } = useEditor();
 
   const [tab, setTab] = useState<Tab>('connection');
   const [urlDraft, setUrlDraft] = useState(connectorUrl);
@@ -83,8 +81,6 @@ export function ConnectorModal({ open, onClose, onToast }: ConnectorModalProps) 
     try {
       await pair();
       onToast?.('Pareamento concluído');
-
-      void loadThumbs();
       onClose()
     } catch (err) {
       onToast?.(String(err));

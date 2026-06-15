@@ -14,6 +14,7 @@ import {
   StaticCompiledPreviewToolbar,
   useStaticPreviewDisplay,
 } from './StaticCompiledPreview';
+import { logger } from '../api/logger';
 
 export function Canvas() {
   const {
@@ -39,9 +40,19 @@ export function Canvas() {
   useEffect(() => {
     if (!page) return;
     if (previewTab === 'svg' && !getPagePreview(page, 'svg')) {
-      compilePreviewSvg({ notifyGoText: true }).catch((e) => showToast(String(e)));
+      compilePreviewSvg({ notifyGoText: true }).catch((e) => {
+        logger('Canvas', {
+          error: e,
+        });
+        showToast(String(e));
+      });
     } else if (previewTab === 'html' && !getPagePreview(page, 'html')) {
-      compilePreviewHtml().catch((e) => showToast(String(e)));
+      compilePreviewHtml().catch((e) => {
+        logger('Canvas', {
+          error: e,
+        });
+        showToast(String(e));
+      });
     }
   }, [previewTab, page, getPagePreview, compilePreviewSvg, compilePreviewHtml, showToast]);
 

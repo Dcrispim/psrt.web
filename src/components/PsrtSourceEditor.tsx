@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as api from '@wails/go/main/GUIApp';
 import { useEditor } from '../context/useEditor';
+import { useEditorPersistence } from '../hooks/useEditorPersistence';
 import { saveLastPsrt } from '../lib/localPsrt';
+import { logger } from '../api/logger';
 
 const APPLY_MS = 400;
 
 export function PsrtSourceEditor({ active }: { active: boolean }) {
-  const { state, document, applyPsrtSource, beginEdit, endEdit, showToast } = useEditor();
+  const { state, document, beginEdit, endEdit, showToast } = useEditor();
+  const { applyPsrtSource, editorApiJson } = useEditorPersistence();
   const [text, setText] = useState('');
   const dirty = useRef(false);
   const focused = useRef(false);
@@ -19,13 +22,16 @@ export function PsrtSourceEditor({ active }: { active: boolean }) {
       return;
     }
     try {
-      const src = await api.FormatDocumentJSON(JSON.stringify(document));
+      const src = await api.FormatDocumentJSON(editorApiJson(document));
       setText(src);
       saveLastPsrt(state.filePath, src);
     } catch (e) {
+      logger('PsrtSourceEditor', {
+        error: e,
+      });
       showToast(String(e));
     }
-  }, [document, state?.filePath, showToast]);
+  }, [document, state?.filePath, showToast, editorApiJson]);
 
   useEffect(() => {
     if (!active) return;
@@ -40,6 +46,9 @@ export function PsrtSourceEditor({ active }: { active: boolean }) {
     try {
       await applyPsrtSource(body);
     } catch (e) {
+      logger('psrtSourceEditor', {
+        error: e,
+      });
       showToast(String(e));
     }
   }, [applyPsrtSource, showToast]);

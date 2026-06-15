@@ -1,8 +1,11 @@
+import { logger } from '../api/logger';
 import { useEditor } from '../context/useEditor';
+import { useEditorPersistence } from '../hooks/useEditorPersistence';
 import { StyleFields } from './StyleFields';
 
 export function PageProperties() {
-  const { state, patchPage, refreshPageImage, showToast } = useEditor();
+  const { state, patchPage, showToast } = useEditor();
+  const { refreshPageImage } = useEditorPersistence();
   const page = state?.page;
   if (!page) return null;
 
@@ -28,7 +31,12 @@ export function PageProperties() {
         />
         <button
           type="button"
-          onClick={() => refreshPageImage().catch((e) => showToast(String(e)))}
+          onClick={() => refreshPageImage().catch((e) => {
+            logger('PageProperties', {
+              error: e,
+            });
+            showToast(String(e));
+          })}
         >
           Refresh image
         </button>

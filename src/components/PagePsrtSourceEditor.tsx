@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as api from '@wails/go/main/GUIApp';
 import { useEditor } from '../context/useEditor';
+import { useEditorPersistence } from '../hooks/useEditorPersistence';
+import { logger } from '../api/logger';
 
 const APPLY_MS = 400;
 
 export function PagePsrtSourceEditor({ active }: { active: boolean }) {
-  const { state, document, applyPagePsrtSource, beginEdit, endEdit, showToast } =
-    useEditor();
+  const { state, document, beginEdit, endEdit, showToast } = useEditor();
+  const { applyPagePsrtSource, editorApiJson } = useEditorPersistence();
   const pageName = state?.activePage ?? '';
   const [text, setText] = useState('');
   const dirty = useRef(false);
@@ -21,14 +23,17 @@ export function PagePsrtSourceEditor({ active }: { active: boolean }) {
     }
     try {
       const src = await api.FormatPageDocumentJSON(
-        JSON.stringify(document),
+        editorApiJson(document),
         pageName,
       );
       setText(src);
     } catch (e) {
+      logger('PagePsrtSourceEditor', {
+        error: e,
+      });
       showToast(String(e));
     }
-  }, [document, pageName, showToast]);
+  }, [document, pageName, showToast, editorApiJson]);
 
   useEffect(() => {
     if (!active) return;
@@ -43,6 +48,9 @@ export function PagePsrtSourceEditor({ active }: { active: boolean }) {
     try {
       await applyPagePsrtSource(body);
     } catch (e) {
+      logger('PagePsrtSourceEditor', {
+        error: e,
+      });
       showToast(String(e));
     }
   }, [applyPagePsrtSource, pageName, showToast]);

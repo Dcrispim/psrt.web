@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { AlertModal, type AlertModalMode } from '../components/editor/AlertModal';
+import { logger } from '../api/logger';
 
 export interface ConfirmOptions {
   title: string;
@@ -119,6 +120,9 @@ export function AlertModalProvider({ children }: { children: ReactNode }) {
 export function useAlertModal(): AlertModalContextValue {
   const ctx = useContext(AlertModalContext);
   if (!ctx) {
+    logger('alertModal', {
+      error: 'useAlertModal must be used within AlertModalProvider',
+    });
     throw new Error('useAlertModal must be used within AlertModalProvider');
   }
   return ctx;
