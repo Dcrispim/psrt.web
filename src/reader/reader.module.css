@@ -1,0 +1,108 @@
+.root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg, #0f0f14);
+  color: var(--text, #fff);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--surface-2, #1c1c26);
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+  flex: 1;
+}
+
+.toolbar {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btn {
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--surface-3, #2a2a36);
+  background: var(--surface, #1c1c26);
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.btnPrimary {
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: var(--accent, #1db954);
+  color: #000;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.page {
+  width: min(100%, 720px);
+}
+
+.pageLabel {
+  font-size: 0.75rem;
+  color: var(--text-muted, #a1a1aa);
+  margin-bottom: 0.5rem;
+}
+
+.empty {
+  padding: 3rem 1rem;
+  text-align: center;
+  color: var(--text-muted, #a1a1aa);
+}
+
+.library {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
+  width: min(100%, 720px);
+  margin: 0 auto;
+}
+
+.libraryCard {
+  padding: 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--surface-3, #2a2a36);
+  background: var(--surface, #1c1c26);
+  cursor: pointer;
+  text-align: left;
+}
+
+.libraryCard:hover {
+  border-color: var(--accent, #1db954);
+}
+
+.libraryTitle {
+  font-weight: 600;
+  font-size: 0.875rem;
+  margin: 0 0 0.25rem;
+}
+
+.libraryMeta {
+  font-size: 0.75rem;
+  color: var(--text-muted, #a1a1aa);
+  margin: 0;
+}
