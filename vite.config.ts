@@ -14,14 +14,28 @@ export default defineConfig({
       registerType: 'autoUpdate',
       manifest: false,
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,webmanifest,woff2}'],
+        globPatterns: ['**/*.{css,html,svg,webmanifest,woff2}'],
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
-        maximumFileSizeToCacheInBytes: 30 * 1024 * 1024,
+        runtimeCaching: [
+          {
+            urlPattern: ({ url, sameOrigin }) =>
+              sameOrigin && url.pathname.endsWith('.js'),
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'app-scripts',
+              expiration: {
+                maxEntries: 8,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+            },
+          },
+        ],
       },
     }),
   ],
   resolve: {
+    dedupe: ['@psrt/sdk'],
     alias: {
       '@wails/go/main/GUIApp': path.resolve(__dirname, 'src/api/connectorClient.ts'),
       '@wails/go/models': path.resolve(__dirname, 'src/models/models.ts'),

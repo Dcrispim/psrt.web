@@ -5,6 +5,7 @@ import {
   getLocalImageDataUri,
   listLocalImages,
   deleteLocalAssetRef,
+  type LocalImageValue,
 } from "../services/localImageStore";
 import { navigateTo } from "../lib/hashRoute";
 
@@ -13,6 +14,17 @@ interface LocalAsset {
   blobUrl: string;
   type: string;
   size: number;
+}
+
+function getLocalAssetMeta(record: LocalImageValue | null): { type: string; size: number } {
+  if (!record) return { type: "", size: 0 };
+  if (typeof record === "string") {
+    const type = record.startsWith("data:")
+      ? (record.match(/^data:([^;,]+)/)?.[1] ?? "image/png")
+      : "image/png";
+    return { type, size: new Blob([record]).size };
+  }
+  return { type: record.type || "", size: record.size };
 }
 
 export function AssetGallery() {
@@ -27,11 +39,12 @@ export function AssetGallery() {
     const loaded = await Promise.all(
       items.map(async (item) => {
         const record = await getLocalImage(item);
+        const { type, size } = getLocalAssetMeta(record);
         return {
           id: item,
           blobUrl: await getLocalImageDataUri(item),
-          type: record?.type ?? "",
-          size: record?.blob?.size ?? 0,
+          type,
+          size,
         };
       })
     );

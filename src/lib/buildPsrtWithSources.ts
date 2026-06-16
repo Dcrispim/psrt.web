@@ -1,8 +1,6 @@
 import {
   attachSourcesToDocument,
   createAssetRegistry,
-  PsrtPage,
-  PsrtStyle,
   stringify,
   type PsrtDocument,
 } from '@psrt/sdk';
@@ -77,117 +75,6 @@ export type BuildPsrtOptions = {
   includeSources: boolean;
 };
 
-type StyleConsolidation = {
-  [styleKey: string]: {
-    [styleValue: string]: number;
-  };
-};
-
-function parseStyleField(style: PsrtStyle): Record<string, unknown> {
-  if (typeof style === 'object' && style !== null && !Array.isArray(style)) {
-    return { ...style };
-  }
-  if (typeof style === 'string') {
-    try {
-      const parsed: unknown = JSON.parse(style.trim() || '{}');
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        return parsed as Record<string, unknown>;
-      }
-    } catch {
-      /* keep empty */
-    }
-  }
-  return {};
-}
-
-function styleValueKey(value: unknown): string | null {
-  if (value === null || value === undefined) return null;
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-    return String(value);
-  }
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return null;
-  }
-}
-
-function styleValuesEqual(a: unknown, b: unknown): boolean {
-  return styleValueKey(a) === styleValueKey(b);
-}
-
-const consolidateStyles = (page: PsrtPage): void => {
-  const texts = page.texts ?? [];
-  const countTexts = texts.length;
-  if (countTexts === 0) return;
-
-  const pageStyle = parseStyleField(page.style);
-  const styleConsolidation: StyleConsolidation = {};
-
-  for (const text of texts) {
-    const textStyle = parseStyleField(text.style);
-    for (const [key, value] of Object.entries(textStyle)) {
-      const valueKey = styleValueKey(value);
-      if (valueKey === null) continue;
-      styleConsolidation[key] ??= {};
-      styleConsolidation[key][valueKey] = (styleConsolidation[key][valueKey] ?? 0) + 1;
-    }
-  }
-
-  const majorityThreshold = Math.floor(countTexts / 2);
-  const newPageStyle: Record<string, unknown> = {};
-
-  for (const [key, countsByValue] of Object.entries(styleConsolidation)) {
-    let bestValueKey: string | null = null;
-    let bestCount = majorityThreshold;
-
-    for (const [valueKey, count] of Object.entries(countsByValue)) {
-      if (count > bestCount) {
-        bestCount = count;
-        bestValueKey = valueKey;
-      }
-    }
-
-    if (bestValueKey === null) continue;
-
-    for (const text of texts) {
-      const candidate = parseStyleField(text.style)[key];
-      if (styleValueKey(candidate) === bestValueKey) {
-        newPageStyle[key] = candidate;
-        break;
-      }
-    }
-  }
-
-  const consolidatedKeys = Object.keys(newPageStyle);
-
-  for (const text of texts) {
-    const textStyle = parseStyleField(text.style);
-    const newTextStyle: Record<string, unknown> = {};
-
-    for (const [key, value] of Object.entries(textStyle)) {
-      if (!(key in newPageStyle)) {
-        newTextStyle[key] = value;
-      }
-    }
-
-    for (const key of consolidatedKeys) {
-      const pageValue = newPageStyle[key];
-      if (Object.prototype.hasOwnProperty.call(textStyle, key)) {
-        if (!styleValuesEqual(pageValue, textStyle[key])) {
-          newTextStyle[key] = textStyle[key];
-        }
-      } else {
-        newTextStyle[key] = 'none';
-      }
-    }
-
-    text.style = newTextStyle;
-  }
-
-  page.style = { ...newPageStyle, ...pageStyle };
-};
-
 /** Serializes document to PSRT; optionally embeds local assets into $SOURCE. */
 export async function buildPsrtForSave(
   doc: EditorDocument,
@@ -198,11 +85,6 @@ export async function buildPsrtForSave(
 
 
   for (const page of prepared.pages) {
-
-    //consolidateStyles(page);
-
-    //-------------------------
-
     // Replace consts in page path
     let pagePath = page.imageUrl;
     if (pagePath) {
