@@ -1,0 +1,109 @@
+import { useEffect, useState } from "react";
+import s from "./AssetGallery.module.css";
+import {
+  getLocalImage,
+  getLocalImageDataUri,
+  listLocalImages,
+  deleteLocalAssetRef,
+} from "../services/localImageStore";
+import { navigateTo } from "../lib/hashRoute";
+
+interface LocalAsset {
+  id: string;
+  blobUrl: string;
+  type: string;
+  size: number;
+}
+
+export function AssetGallery() {
+  const [assets, setAssets] = useState<LocalAsset[]>([]);
+
+  useEffect(() => {
+    loadAssets();
+  }, []);
+
+  const loadAssets = async () => {
+    const items = await listLocalImages();
+    const loaded = await Promise.all(
+      items.map(async (item) => {
+        const record = await getLocalImage(item);
+        return {
+          id: item,
+          blobUrl: await getLocalImageDataUri(item),
+          type: record?.type ?? "",
+          size: record?.blob?.size ?? 0,
+        };
+      })
+    );
+    setAssets(loaded);
+  };
+
+  const copyToClipboard = (id: string) => {
+    const ref = `@local:${id}`;
+    navigator.clipboard.writeText(ref);
+  };
+
+  const deleteAsset = (id: string) => {
+    console.log(`Deleting asset ${id}`);
+    deleteLocalAssetRef(id).then(() => {
+      console.log(`Asset ${id} deleted`);
+      loadAssets();
+    }).catch((error) => {
+      console.error(`Error deleting asset ${id}`, error);
+    });
+  };
+
+  return (
+    <div className={s.container}>
+      <div className={s.header}>
+        <div>
+          <button type="button" className={s.btn} onClick={() => navigateTo('editor')}>
+            Editor
+          </button>
+          <h2>Galeria de Assets Locais</h2>
+        </div>
+      </div>
+
+      <div className={s.grid}>
+        {assets.map((asset) => (
+          <div key={asset.id} className={s.card}>
+            <div className={s.preview}>
+              {asset.type.startsWith("image") ? (
+                <img src={asset.blobUrl} alt={asset.id} />
+              ) : (
+                <span className={s.fontPreview}>Aa</span>
+              )}
+            </div>
+
+            <div className={s.info}>
+              <span className={s.id}>ID: {asset.id}</span>
+              <span className={s.size}>
+                {(asset.size / 1024 / 1024).toFixed(2)} MB
+              </span>
+            </div>
+
+            <div className={s.actions}>
+              <button
+                className={s.btn}
+                onClick={() => copyToClipboard(asset.id)}
+                title="Copiar referência @local"
+              >
+                Copiar Ref
+              </button>
+              <button
+                className={`${s.btn} ${s.btnDanger}`}
+                onClick={() => deleteAsset(asset.id)}
+              >
+                Excluir
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {assets.length === 0 && (
+          <div className={s.empty}>Nenhum asset local encontrado.</div>
+        )}
+      </div>
+    </div>
+  );
+}
