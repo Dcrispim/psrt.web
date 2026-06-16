@@ -14,7 +14,7 @@ function isDirectDisplayUrl(url: string): boolean {
 
 function pageImageKey(doc: PsrtDocument | null): string {
   if (!doc) return '';
-  return doc.pages.map((p) => `${p.name}\0${p.imageUrl ?? ''}`).join('\n');
+  return doc.pages?.map((p) => `${p.name}\0${p.imageUrl ?? ''}`).join('\n') ?? '';
 }
 
 function toThumbSrc(raw: string): string {

@@ -1,14 +1,16 @@
 import { useCallback } from 'react';
 import * as api from '@wails/go/main/GUIApp';
 import { useEditor } from '../context/useEditor';
-import { parseDocumentJson, createEmptyDocument, stripSourcesFromDocument } from '../lib/documentModel';
+import { parseDocumentJson, createEmptyDocument } from '../lib/documentModel';
 import { buildPsrtForSave } from '../lib/buildPsrtWithSources';
+import { ingestPsrtSources } from '../lib/ingestPsrtSources';
 import { saveLastPsrt } from '../lib/localPsrt';
 import { sanitizeDocumentStylesForSave } from '../lib/textBlockAdapter';
 import { editorApiJson } from '../lib/editorApiSerialize';
 
-function parseEditorDocument(json: string) {
-  return stripSourcesFromDocument(parseDocumentJson(json));
+async function parseEditorDocument(json: string) {
+  const parsed = parseDocumentJson(json);
+  return ingestPsrtSources(parsed);
 }
 
 /** File I/O and PSRT apply — editor document never includes $SOURCE. */
@@ -28,7 +30,7 @@ export function useEditorPersistence() {
   const openFile = useCallback(async () => {
     const result = await api.OpenFileDialog();
     if (!result?.document) return;
-    const doc = parseEditorDocument(result.document);
+    const doc = await parseEditorDocument(result.document);
     loadDocument(doc, result.filePath);
   }, [loadDocument]);
 
@@ -69,7 +71,7 @@ export function useEditorPersistence() {
   const applyPsrtSource = useCallback(
     async (text: string) => {
       const json = await api.ParseDocumentPSRT(text);
-      const doc = parseEditorDocument(json);
+      const doc = await parseEditorDocument(json);
       replaceDocument(doc);
       if (filePath) saveLastPsrt(filePath, text);
       const page = doc.pages.find((p) => p.name === activePage);
@@ -87,7 +89,7 @@ export function useEditorPersistence() {
         activePage,
         text,
       );
-      const doc = parseEditorDocument(json);
+      const doc = await parseEditorDocument(json);
       replaceDocument(doc);
       if (pageIdx >= 0 && doc.pages[pageIdx]?.name !== activePage) {
         setActivePage(doc.pages[pageIdx].name);

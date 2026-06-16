@@ -21,7 +21,7 @@ export function useEditorPagePreviewDocument(
   activePage: string,
 ): PsrtDocument | null {
   const rawRef =
-    document?.pages.find((p) => p.name === activePage)?.imageUrl?.trim() ?? '';
+    document?.pages?.find((p) => p.name === activePage)?.imageUrl?.trim() ?? '';
   const [pageImageSrc, setPageImageSrc] = useState<string | null>(null);
 
   useEffect(() => {
