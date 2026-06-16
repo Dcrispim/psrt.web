@@ -5,7 +5,7 @@ export type SaveOption = 'psrt' | 'svg' | 'html';
 
 const FORMATS: { id: SaveOption; label: string; hint: string }[] = [
   { id: 'psrt', label: 'Salvar PSRT', hint: 'Formato nativo editável (.psrt)' },
-  { id: 'svg', label: 'Salvar como SVG', hint: 'Vetor exportado para web' },
+  //{ id: 'svg', label: 'Salvar como SVG', hint: 'Vetor exportado para web' },
   { id: 'html', label: 'Salvar como HTML', hint: 'Variantes embutidas; Ctrl+L no preview' },
 ];
 

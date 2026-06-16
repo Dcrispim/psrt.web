@@ -41,11 +41,25 @@
 
   .pageImageRow {
     display: grid;
-    grid-template-columns: 1fr auto auto;
+    grid-template-columns: 1fr auto auto auto;
     gap: 6px;
     align-items: center;
   }
 
+.pageImageRow input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--surface-2);
+  border: 1px dashed var(--border-strong);
+  color: var(--muted);
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  min-width: 36px;
+  transition: color 0.15s, border-color 0.15s;
+}
   .pageImageActionBtn {
     appearance: none;
     background: var(--surface-2);

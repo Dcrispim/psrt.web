@@ -67,14 +67,10 @@ export function MaskBlock({
 
     if (dragRef.current) return;
     const stage = stageRef.current;
-    console.log('stage', stage);
     if (!stage) return;
     const rect = stage.getBoundingClientRect();
-    console.log('rect', rect);
     const px = (((e.clientX - rect.left) / rect.width) * 100).toFixed(1);
-    console.log('px', px);
     const py = (((e.clientY - rect.top) / rect.height) * 100).toFixed(1);
-    console.log('py', py);
     setTooltip(`#${mask.index}  x:${mask.x}% y:${mask.y}%  (${px}%, ${py}%)`);
   };
 

@@ -7,6 +7,7 @@ import { BorderRadiusSection } from "./sections/BorderRadiusSection";
 import { ColorsSection } from "./sections/ColorsSection";
 import { ContentSection } from "./sections/ContentSection";
 import { CssPropsSection } from "./sections/CssPropsSection";
+import { OrderSection } from "./sections/OrderSection";
 import { PositionSection } from "./sections/PositionSection";
 import { ShadowSection } from "./sections/ShadowSection";
 import { TexturesSection } from "./sections/TexturesSection";
@@ -22,6 +23,7 @@ function PropertiesPanelSections() {
   return (
     <>
       <PositionSection />
+      <OrderSection />
       <ContentSection />
       <TexturesSection />
       <BorderRadiusSection />

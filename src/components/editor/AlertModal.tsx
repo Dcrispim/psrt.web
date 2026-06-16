@@ -3,6 +3,12 @@ import s from './alertModal.module.css';
 
 export type AlertModalMode = 'confirm' | 'prompt';
 
+export interface PromptInputProps {
+  ref: React.RefObject<HTMLInputElement | null>;
+  defaultValue: string;
+  placeholder?: string;
+}
+
 export interface AlertModalProps {
   open: boolean;
   mode: AlertModalMode;
@@ -15,6 +21,7 @@ export interface AlertModalProps {
   danger?: boolean;
   onConfirm: (value?: string) => void;
   onCancel: () => void;
+  InputComponent?: React.ComponentType<PromptInputProps>;
 }
 
 export function AlertModal({
@@ -29,6 +36,7 @@ export function AlertModal({
   danger = false,
   onConfirm,
   onCancel,
+  InputComponent,
 }: AlertModalProps) {
   const titleId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -84,7 +92,14 @@ export function AlertModal({
 
         {mode === 'prompt' ? (
           <form className={s.field} onSubmit={submitPrompt}>
-            <input
+            {InputComponent ? (
+              <InputComponent
+                ref={inputRef}
+                defaultValue={defaultValue}
+                placeholder={placeholder}
+              />
+            ) : (
+              <input
               ref={inputRef}
               className={s.input}
               type="text"
@@ -93,6 +108,7 @@ export function AlertModal({
               autoComplete="off"
               spellCheck={false}
             />
+            )}
           </form>
         ) : null}
 

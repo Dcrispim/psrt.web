@@ -74,6 +74,7 @@ export function PropertiesPanelProvider({
   const editingKeyBeforeRef = useRef<string | null>(null);
   const cssPropKeyListId = useId();
 
+
   const propsSyncKey = block ? JSON.stringify(block.props) : "";
 
   useEffect(() => {
@@ -327,6 +328,27 @@ export function PropertiesPanelProvider({
       : draftProps
     : [];
 
+
+  const moveBlockOrder = useCallback(
+    (direction: "up" | "down") => {
+      if (!block) return;
+      const direaction = direction === "up" ? -1 : 1;
+      const index = blocks.findIndex((b) => b.id === block.id);
+      const newPlace = blocks.findIndex((b) => b.id === block.id + direaction);
+
+      if (newPlace < 0 || newPlace >= blocks.length) return;
+
+      const newBlocks = [...blocks];
+      const [movedBlock] = newBlocks.splice(index, 1);
+      newBlocks.splice(newPlace, 0, movedBlock);
+      onChange((b) => ({ ...b, blocks: newBlocks }));
+
+
+    },
+    [block, onChange],
+  );
+
+
   const value = useMemo<PropertiesPanelContextValue>(
     () => ({
       blocks,
@@ -381,6 +403,7 @@ export function PropertiesPanelProvider({
       setUniformShadow,
       enableUnifiedShadow,
       applyBlur,
+      moveBlockOrder,
     }),
     [
       blocks,
@@ -425,6 +448,7 @@ export function PropertiesPanelProvider({
       setUniformShadow,
       enableUnifiedShadow,
       applyBlur,
+      moveBlockOrder,
     ],
   );
 

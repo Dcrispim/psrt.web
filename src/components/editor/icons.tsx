@@ -40,3 +40,6 @@ export const IconPin = ({ size: n, className }: { size: number, className?: stri
   </svg>
 );
 
+export const IconArrowUp = ({ size: n }: Props = {}) => (<svg {...s(n)}><path d="M12 19V5M6 11l6-6 6 6" /></svg>);
+export const IconArrowDown = ({ size: n }: Props = {}) => (<svg {...s(n)}><path d="M12 5v14M6 13l6 6 6-6" /></svg>);
+

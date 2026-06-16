@@ -367,6 +367,14 @@ export function Header() {
           </button>
           <button
             type="button"
+            className={s.btn}
+            title="Assets"
+            onClick={() => navigateTo('local-assets')}
+          >
+            <Icon name="assets" /> <span>Assets</span>
+          </button>
+          <button
+            type="button"
             className={`${s.iconBtn} ${s.danger}`}
             title="Remover página atual"
             aria-label="Remover página"

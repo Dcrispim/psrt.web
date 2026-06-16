@@ -3,6 +3,11 @@ import { useEditor } from '../context/useEditor';
 import { documentHasLocalAssetRefs } from '../lib/localAssetRef';
 
 export function ConnectorBanner() {
+  const skip = localStorage.getItem('connector-banner-skip') === 'true' || false;
+
+  if (skip) return null;
+
+
   const { status, connectorUrl } = useConnector();
   const { document } = useEditor();
 
@@ -21,7 +26,8 @@ export function ConnectorBanner() {
 
   return (
     <div className="connector-banner" role="status">
-      <strong>Atenção:</strong> {message}
+      <div><strong>Atenção:</strong> {message}</div>
+      <div><button type="button" className="link" onClick={() => localStorage.setItem('connector-banner-skip', 'true')}>Não mostrar novamente</button></div>
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { NOT_FOUND_IMAGE_SRC } from '../lib/notFoundImage';
 import { TextBlock } from './TextBlock';
 import { MaskBlock } from './MaskBlock';
 import '../styles/image-psrt.css';
+import { resolveAssetReference } from '../lib/expandConsts';
 
 export function WebPreview({ variant = 'footer' }: { variant?: 'footer' | 'canvas' }) {
   const {
@@ -32,7 +33,10 @@ export function WebPreview({ variant = 'footer' }: { variant?: 'footer' | 'canva
   const isCanvas = variant === 'canvas';
 
   const resolveAssetUrl = useCallback(async (url: string) => {
-    const uri = await GetAssetDataURI(url);
+    console.log('resolveAssetUrl', url);
+    const expanded = resolveAssetReference(url, document?.consts ?? {});
+    console.log('expanded', expanded);
+    const uri = await GetAssetDataURI(expanded);
     return uri || NOT_FOUND_IMAGE_SRC;
   }, []);
 
