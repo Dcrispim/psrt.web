@@ -34,6 +34,7 @@ import {
 import { readFontFileAsDataUri } from '../lib/fontFileDataUri';
 import { buildPsrtForSave } from '../lib/buildPsrtWithSources';
 import type { PsrtDocument } from '../types/document';
+import { prepareDocumentForSave } from '../lib/restoreLocalRefsForSave';
 import type { PsrtVariant } from '@psrt/sdk';
 import { getActiveConsts, isConnectorActive, setActiveConsts } from './connectorConfig';
 import { connectorPostApi } from './http';
@@ -43,6 +44,11 @@ import {
   downloadSvg,
   pickPsrtFile,
 } from '../services/fileIO';
+import {
+  getLocalImageDataUri,
+  hasLocalImage,
+  putLocalImage,
+} from '../services/localImageStore';
 
 function encodePreview(data: Uint8Array | string, mime: string): string {
   const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : data;
@@ -183,12 +189,20 @@ export async function AdaptTextStyleForWeb(
 export async function GetAssetDataURI(url: string): Promise<string> {
   if (!url) return '';
 
+  const trimmed = url.trim();
+  if (trimmed.startsWith('@local:')) {
+    return getLocalImageDataUri(trimmed.slice(7));
+  }
+
   const mergedConsts = getMergedDocumentConsts();
   const expanded = resolveAssetReference(url, mergedConsts)?.trim() ?? '';
 
   if (expanded.startsWith('data:')) return expanded;
   if (/^https?:\/\//i.test(expanded)) return expanded;
 
+  if (await hasLocalImage(expanded)) {
+    return getLocalImageDataUri(expanded);
+  }
 
   if (isLocalAssetRef(expanded)) {
     if (!isConnectorActive()) return '';
@@ -221,14 +235,16 @@ export async function GetAssetDataURI(url: string): Promise<string> {
 }
 
 export async function FormatDocumentJSON(docJSON: string): Promise<string> {
-  return formatDocument(JSON.parse(docJSON));
+  const doc = prepareDocumentForSave(JSON.parse(docJSON) as PsrtDocument);
+  return formatDocument(doc);
 }
 
 export async function FormatPageDocumentJSON(
   docJSON: string,
   pageName: string,
 ): Promise<string> {
-  return formatPageDocumentJSON(docJSON, pageName);
+  const doc = prepareDocumentForSave(JSON.parse(docJSON) as PsrtDocument);
+  return formatPageDocumentJSON(JSON.stringify(doc), pageName);
 }
 
 export async function MergePageDocumentPSRT(
@@ -277,22 +293,29 @@ export async function OpenImageFileDialog(): Promise<string> {
   return new Promise((resolve) => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = 'image/png,image/jpeg,image/gif,image/webp,image/avif,image/svg+xml';
-    input.onchange = () => {
+    input.accept =
+      'image/png,image/jpeg,image/gif,image/webp,image/avif,image/svg+xml';
+
+    input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) {
         resolve('');
         return;
       }
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result ?? ''));
-      reader.onerror = () => resolve('');
-      reader.readAsDataURL(file);
+
+      try {
+        const key = file.name;
+        await putLocalImage(key, file);
+        resolve(`@local:${key}`);
+      } catch (e) {
+        console.error('Failed to store image in IndexedDB:', e);
+        resolve('');
+      }
     };
+
     input.click();
   });
 }
-
 export async function OpenFontFileDialog(): Promise<string> {
   return new Promise((resolve) => {
     const input = document.createElement('input');
