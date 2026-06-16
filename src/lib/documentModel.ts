@@ -498,14 +498,12 @@ function defaultStyleForNewText(existing: PsrtText[]): Record<string, unknown> {
   if (existing.length === 0) {
     return {
       color: '#000000',
-      padding: '8px',
       'text-align': 'center',
     };
   }
   const prev = existing[existing.length - 1];
   const prevStyle = parseStyleObject(prev.style);
   const style: Record<string, unknown> = {
-    padding: prevStyle.padding ?? '8px',
     'text-align': 'center',
   };
   const align = prevStyle['text-align'] ?? prevStyle.textAlign;

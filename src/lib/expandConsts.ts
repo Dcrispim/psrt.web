@@ -21,3 +21,14 @@ export function resolveAssetReference(
 ): string {
   return expandConsts(raw.trim(), consts);
 }
+
+export function applyConstantsToReference(
+  raw: string,
+  consts: Record<string, string> | undefined,
+): string {
+  let out = raw.trim();
+  for (const [name, value] of Object.entries(consts ?? {})) {
+    out = out.replace(value, `@${name}@`);
+  }
+  return out;
+}

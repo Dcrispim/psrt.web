@@ -1,15 +1,24 @@
-export type AppRoute = 'editor' | 'reader';
+const ROUTES = {
+  editor: '#/',
+  reader: '#/reader',
+  'local-assets': '#/local-assets',
+};
+
+export type AppRoute = 'editor' | 'reader' | 'local-assets';
 
 export function getHashRoute(): AppRoute {
   const hash = window.location.hash.replace(/^#\/?/, '').split('?')[0]?.toLowerCase() ?? '';
-  if (hash === 'reader') return 'reader';
+  if (ROUTES[hash as AppRoute]) {
+    console.log('hash', hash);
+    return hash as AppRoute
+  };
   return 'editor';
 }
 
 export function navigateTo(route: AppRoute): void {
-  const next = route === 'reader' ? '#/reader' : '#/';
-  if (window.location.hash !== next) {
-    window.location.hash = next;
+
+  if (ROUTES[route] && window.location.hash !== ROUTES[route]) {
+    window.location.hash = ROUTES[route];
   }
 }
 

@@ -18,6 +18,7 @@ import {
 } from './services/draftRestorePreference';
 import { APP_NAME, LOGO_FULL_SRC } from './lib/branding';
 import './styles/global.css';
+import { AssetGallery } from './asset-galery/GaleryApp';
 
 if (import.meta.env.PROD) {
   void import('virtual:pwa-register').then(({ registerSW }) => {
@@ -168,6 +169,10 @@ function RootRouter() {
 
   if (route === 'reader') {
     return <ReaderBootstrap />;
+  }
+  if (route === 'local-assets') {
+    console.log('route', route);
+    return <AssetGallery />;
   }
   return <Bootstrap />;
 }

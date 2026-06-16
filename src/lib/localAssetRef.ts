@@ -92,6 +92,7 @@ export function buildPageImageRefFromLocalPath(
 export function isLocalAssetRef(raw: string): boolean {
   const s = raw.trim();
   if (!s) return false;
+  if (s.startsWith('@local:')) return true;
   if (s.startsWith('data:') || s.startsWith('psrt-asset://')) return false;
   if (/^https?:\/\//i.test(s)) return false;
   if (/^file:/i.test(s)) return true;

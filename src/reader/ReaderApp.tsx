@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { PSRTImage, usePSRT } from '@psrt/react-image';
+import { PSRTImage } from '@psrt/react-image';
 import '@psrt/react-image/style.css';
 import { listLocalProjects, connectorFetchBlob, connectorPostApi } from '../api/http';
 import { isConnectorActive } from '../api/connectorConfig';
@@ -10,9 +10,11 @@ import { navigateTo } from '../lib/hashRoute';
 import { pickPsrtFile } from '../services/fileIO';
 import { useDocumentFonts } from '../hooks/useDocumentFonts';
 import { useReaderDisplayDocument } from './useReaderDisplayDocument';
+import { useReaderPSRT } from './useReaderPSRT';
 import s from './reader.module.css';
 import { NOT_FOUND_IMAGE_SRC } from '../lib/notFoundImage';
 import { resolveAssetUrl as sdkResolveAssetUrl } from '@psrt/sdk';
+import { getLocalImageDataUri, localKeyFromRef } from '../services/localImageStore';
 
 function toDisplayUrl(value: string): string {
   if (value.startsWith('data:')) return dataUriToBlobUrl(value);
@@ -42,11 +44,21 @@ export function ReaderApp() {
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [libraryLoading, setLibraryLoading] = useState(false);
 
-  const { document, registry, loading, error } = usePSRT(raw);
+  const { document, registry, loading, error } = useReaderPSRT(raw);
   const displayDocument = useReaderDisplayDocument(document, registry);
 
   const resolveAssetUrl = useCallback(
     async (url: string) => {
+      const trimmed = url.trim();
+      const localKey = localKeyFromRef(trimmed);
+      if (localKey) {
+        const dataUri = await getLocalImageDataUri(localKey);
+        if (dataUri && isDisplayableImageUrl(dataUri)) {
+          return toDisplayUrl(dataUri);
+        }
+        return NOT_FOUND_IMAGE_SRC;
+      }
+
       const consts = document?.consts ?? {};
       const uri = await sdkResolveAssetUrl(url, {
         registry,
@@ -138,7 +150,7 @@ export function ReaderApp() {
         </div>
       </header>
 
-      <main className={s.scroll}>
+      <main className={s.scroll} style={{ padding: 0, margin: 0, gap: 0 }}>
         {libraryOpen && library.length > 0 ? (
           <div className={s.library}>
             {library.map((project) => (
@@ -170,7 +182,6 @@ export function ReaderApp() {
 
         {displayDocument?.pages.map((page) => (
           <section key={page.name} className={s.page}>
-            <p className={s.pageLabel}>{page.name}</p>
             <PSRTImage
               psrt={displayDocument}
               pageName={page.name}

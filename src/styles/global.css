@@ -16,6 +16,11 @@ body {
 }
 
 .connector-banner {
+  display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
   padding: 8px 14px;
   font-size: 13px;
   line-height: 1.45;
@@ -24,6 +29,20 @@ body {
   border-bottom: 1px solid #4a2020;
 }
 
+.connector-banner button {
+  background: transparent;
+  border: none;
+  color: #fca5a5;
+  font-size: 13px;
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+.connector-banner button:hover {
+  color: #f87171;
+  text-decoration: underline;
+  background: transparent;
+}
 .connector-banner code {
   font-family: ui-monospace, Consolas, monospace;
   font-size: 12px;

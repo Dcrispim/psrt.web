@@ -6,6 +6,7 @@ import { isConnectorActive } from '../api/connectorConfig';
 import { resolveAssetReference } from '../lib/expandConsts';
 import { dataUriToBlobUrl } from '../lib/blobUrl';
 import { isLocalAssetRef } from '../lib/localAssetRef';
+import { getLocalImageDataUri, localKeyFromRef } from '../services/localImageStore';
 import { buildDisplayDocument } from './readerDisplay';
 
 function toDisplayUrl(value: string): string {
@@ -27,6 +28,15 @@ async function resolveReaderAssetUrl(
   consts: Record<string, string>,
 ): Promise<string> {
   const trimmed = url.trim();
+  const localKey = localKeyFromRef(trimmed);
+  if (localKey) {
+    const dataUri = await getLocalImageDataUri(localKey);
+    if (dataUri && isDisplayableImageUrl(dataUri)) {
+      return toDisplayUrl(dataUri);
+    }
+    return trimmed;
+  }
+
   const expanded = resolveAssetReference(trimmed, consts)?.trim() ?? '';
   const fromRegistry =
     registry.resolve(trimmed) ??
