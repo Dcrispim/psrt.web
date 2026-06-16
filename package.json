@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@psrt/react-image": "file:../../sdk/react-image",
+    "@psrt/react-image": "^0.1.4",
     "@psrt/sdk": "^0.1.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
