@@ -75,5 +75,5 @@ export interface PropertiesPanelContextValue {
   setUniformShadow: (amount: number) => void;
   enableUnifiedShadow: () => void;
   applyBlur: (blur: Blur) => void;
-  moveBlockOrder: (direction: "up" | "down") => void;
+  moveBlockOrder: (index: number, direction: "up" | "down") => void;
 }

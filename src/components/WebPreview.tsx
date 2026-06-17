@@ -33,9 +33,7 @@ export function WebPreview({ variant = 'footer' }: { variant?: 'footer' | 'canva
   const isCanvas = variant === 'canvas';
 
   const resolveAssetUrl = useCallback(async (url: string) => {
-    console.log('resolveAssetUrl', url);
     const expanded = resolveAssetReference(url, document?.consts ?? {});
-    console.log('expanded', expanded);
     const uri = await GetAssetDataURI(expanded);
     return uri || NOT_FOUND_IMAGE_SRC;
   }, []);

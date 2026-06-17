@@ -594,6 +594,38 @@ export function removeTextFromDocument(
   return next;
 }
 
+/** Swap z-order (`index`) with the adjacent block on the active page. */
+export function reorderBlockInDocument(
+  doc: PsrtDocument,
+  pageName: string,
+  blockIndex: number,
+  direction: 'up' | 'down',
+): { doc: PsrtDocument; newIndex: number } | null {
+  const next = cloneDocument(doc);
+  const page = next.pages.find((p) => p.name === pageName);
+  if (!page) return null;
+
+  const blocks = [
+    ...pageTexts(page).map((item) => item),
+    ...pageMasks(page).map((item) => item),
+  ].sort((a, b) => a.index - b.index);
+
+  const pos = blocks.findIndex((b) => b.index === blockIndex);
+  if (pos < 0) return null;
+
+  const targetPos = direction === 'up' ? pos + 1 : pos - 1;
+  if (targetPos < 0 || targetPos >= blocks.length) return null;
+
+  const current = blocks[pos];
+  const neighbor = blocks[targetPos];
+  const currentIdx = current.index;
+  const neighborIdx = neighbor.index;
+  current.index = neighborIdx;
+  neighbor.index = currentIdx;
+
+  return { doc: next, newIndex: neighborIdx };
+}
+
 export function addMaskToDocument(
   doc: PsrtDocument,
   pageName: string,

@@ -31,6 +31,7 @@ import {
 import { shadowIsActive } from "./summaries";
 import type { PropertiesPanelContextValue, PropertiesPanelProps } from "./types";
 import { logger } from "../../../api/logger";
+import { useEditor } from "../../../context/useEditor";
 
 const PropertiesPanelContext = createContext<PropertiesPanelContextValue | null>(null);
 
@@ -61,6 +62,9 @@ export function PropertiesPanelProvider({
   fontOptions,
   children,
 }: PropertiesPanelProps & { children: ReactNode }) {
+
+  const { moveBlockOrder } = useEditor();
+
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
   const block = blocks.find((b) => b.id === activeId);
   const [draftProps, setDraftProps] = useState<{ key: string; value: string }[]>([]);
@@ -329,24 +333,6 @@ export function PropertiesPanelProvider({
     : [];
 
 
-  const moveBlockOrder = useCallback(
-    (direction: "up" | "down") => {
-      if (!block) return;
-      const direaction = direction === "up" ? -1 : 1;
-      const index = blocks.findIndex((b) => b.id === block.id);
-      const newPlace = blocks.findIndex((b) => b.id === block.id + direaction);
-
-      if (newPlace < 0 || newPlace >= blocks.length) return;
-
-      const newBlocks = [...blocks];
-      const [movedBlock] = newBlocks.splice(index, 1);
-      newBlocks.splice(newPlace, 0, movedBlock);
-      onChange((b) => ({ ...b, blocks: newBlocks }));
-
-
-    },
-    [block, onChange],
-  );
 
 
   const value = useMemo<PropertiesPanelContextValue>(

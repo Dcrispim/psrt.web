@@ -8,10 +8,17 @@ import { connectorPostApi } from '../api/http';
 import { isConnectorActive } from '../api/connectorConfig';
 import { hasDataUriPayload } from './decodeDataUri';
 import { resolveAssetReference } from './expandConsts';
-import { isLocalAssetRef } from './localAssetRef';
+import { isLocalAssetRef, normalizeFileRef } from './localAssetRef';
 import { prepareDocumentForSave } from './restoreLocalRefsForSave';
-import { getLocalImageDataUri } from '../services/localImageStore';
+import {
+  getLocalImageEmbedDataUri,
+  localKeyFromRef,
+} from '../services/localImageStore';
 import type { PsrtDocument as EditorDocument } from '../types/document';
+
+function isHttpUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value);
+}
 
 function collectEmbeddableRefs(doc: EditorDocument): string[] {
   const consts = doc.consts ?? {};
@@ -23,7 +30,7 @@ function collectEmbeddableRefs(doc: EditorDocument): string[] {
     if (!trimmed || seen.has(trimmed)) return;
     const expanded = resolveAssetReference(trimmed, consts)?.trim() ?? '';
     if (!expanded || expanded.startsWith('data:')) return;
-    if (!isLocalAssetRef(expanded)) return;
+    if (!isLocalAssetRef(expanded) && !isHttpUrl(expanded)) return;
     seen.add(trimmed);
     out.push(trimmed);
   };
@@ -38,12 +45,24 @@ function collectEmbeddableRefs(doc: EditorDocument): string[] {
   return out;
 }
 
-async function resolveLocalDataUri(
-  rawRef: string,
-  consts: Record<string, string>,
-): Promise<string | null> {
-  const expanded = resolveAssetReference(rawRef.trim(), consts)?.trim() ?? '';
-  if (!expanded || !isConnectorActive()) return null;
+async function fetchHttpAsDataUri(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise<string | null>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? '') || null);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function resolveFromConnector(expanded: string): Promise<string | null> {
+  if (!expanded) return null;
   try {
     const { uri } = await connectorPostApi<{ uri: string }>('/get-asset-data-uri', {
       url: expanded,
@@ -54,21 +73,52 @@ async function resolveLocalDataUri(
   }
 }
 
+async function resolveFromIndexedDb(
+  rawRef: string,
+  expanded: string,
+): Promise<string | null> {
+  const candidates = new Set<string>([
+    expanded,
+    normalizeFileRef(expanded),
+    rawRef.trim(),
+  ]);
+
+  const localKey = localKeyFromRef(rawRef);
+  if (localKey) {
+    candidates.add(localKey);
+    candidates.add(normalizeFileRef(localKey));
+  }
+
+  for (const key of candidates) {
+    const uri = await getLocalImageEmbedDataUri(key);
+    if (uri && hasDataUriPayload(uri)) return uri;
+  }
+
+  return null;
+}
+
 async function resolveEmbeddableDataUri(
   rawRef: string,
   consts: Record<string, string>,
 ): Promise<string | null> {
   const trimmed = rawRef.trim();
   const expanded = resolveAssetReference(trimmed, consts)?.trim() ?? '';
-  if (!expanded) return null;
+  if (!expanded || expanded.startsWith('data:')) return null;
 
-  const fromIndexedDb = await getLocalImageDataUri(expanded);
+  if (isConnectorActive()) {
+    return resolveFromConnector(expanded);
+  }
+
+  const fromIndexedDb = await resolveFromIndexedDb(trimmed, expanded);
   if (fromIndexedDb && hasDataUriPayload(fromIndexedDb)) {
     return fromIndexedDb;
   }
 
-  if (!isConnectorActive() || !isLocalAssetRef(expanded)) return null;
-  return resolveLocalDataUri(trimmed, consts);
+  if (isHttpUrl(expanded)) {
+    return fetchHttpAsDataUri(expanded);
+  }
+
+  return null;
 }
 
 export type BuildPsrtOptions = {
@@ -82,10 +132,7 @@ export async function buildPsrtForSave(
 ): Promise<string> {
   const prepared = prepareDocumentForSave(doc) as unknown as PsrtDocument;
 
-
-
   for (const page of prepared.pages) {
-    // Replace consts in page path
     let pagePath = page.imageUrl;
     if (pagePath) {
       for (const constant of Object.keys(prepared.consts ?? {})) {
@@ -112,7 +159,6 @@ export async function buildPsrtForSave(
   }
 
   const withSources = attachSourcesToDocument(prepared, registry);
-
 
   return stringify(withSources);
 }

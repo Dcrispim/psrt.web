@@ -9,7 +9,6 @@ export type AppRoute = 'editor' | 'reader' | 'local-assets';
 export function getHashRoute(): AppRoute {
   const hash = window.location.hash.replace(/^#\/?/, '').split('?')[0]?.toLowerCase() ?? '';
   if (ROUTES[hash as AppRoute]) {
-    console.log('hash', hash);
     return hash as AppRoute
   };
   return 'editor';

@@ -8,6 +8,7 @@ import {
   type LocalImageValue,
 } from "../services/localImageStore";
 import { navigateTo } from "../lib/hashRoute";
+import { logger } from "../api/logger";
 
 interface LocalAsset {
   id: string;
@@ -57,11 +58,12 @@ export function AssetGallery() {
   };
 
   const deleteAsset = (id: string) => {
-    console.log(`Deleting asset ${id}`);
     deleteLocalAssetRef(id).then(() => {
-      console.log(`Asset ${id} deleted`);
       loadAssets();
     }).catch((error) => {
+      logger('AssetGallery.deleteAsset', {
+        error: error,
+      });
       console.error(`Error deleting asset ${id}`, error);
     });
   };

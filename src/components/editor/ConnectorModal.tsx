@@ -86,6 +86,7 @@ export function ConnectorModal({ open, onClose, onToast }: ConnectorModalProps) 
       onToast?.(String(err));
     } finally {
       setPairing(false);
+      localStorage.setItem('skip-connector-banner', 'false');
     }
   }, [urlDraft, setConnectorUrlState, pair, onToast]);
 

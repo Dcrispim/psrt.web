@@ -32,6 +32,7 @@ import {
   removeFontFromDocument,
   removePageFromDocument,
   removeTextFromDocument,
+  reorderBlockInDocument,
 } from '../lib/documentModel';
 import { DEFAULT_PAGE_BG_URL } from '../lib/defaultPageBackground';
 import { loadHtmlVariantsFromFiles } from '../lib/prepareHtmlVariants';
@@ -121,6 +122,7 @@ export interface EditorContextValue {
   savingSvg: boolean;
   savingPsrt: boolean;
   htmlCompileProgress: HtmlCompileProgress | null;
+  moveBlockOrder: (index: number, direction: 'up' | 'down') => void;
 }
 
 export const EditorContext = createContext<EditorContextValue | null>(null);
@@ -458,6 +460,18 @@ export function EditorProvider({
     [document, activePage, replaceDocument],
   );
 
+  const moveBlockOrder = useCallback(
+    (index: number, direction: 'up' | 'down') => {
+      if (!document || !activePage || index < 0) return;
+      const result = reorderBlockInDocument(document, activePage, index, direction);
+      if (!result) return;
+      replaceDocument(result.doc);
+      if (selectedIndex === index) setSelectedIndex(result.newIndex);
+      else if (selectedIndex === result.newIndex) setSelectedIndex(index);
+    },
+    [document, activePage, selectedIndex, replaceDocument],
+  );
+
   const selectText = useCallback((index: number) => {
     setSelectedIndex(index);
     setMultiSelected(index >= 0 ? new Set([index]) : new Set());
@@ -744,7 +758,8 @@ export function EditorProvider({
       savingHtml,
       savingSvg,
       savingPsrt,
-      htmlCompileProgress,
+      htmlCompileProgress,  
+      moveBlockOrder,
     }),
     [
       document,
@@ -800,6 +815,7 @@ export function EditorProvider({
       savingSvg,
       savingPsrt,
       htmlCompileProgress,
+      moveBlockOrder,
     ],
   );
 

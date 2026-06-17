@@ -23,13 +23,40 @@ export function decodeStorageKey(key: string): string {
   return atob(key.replace(/-/g, '+').replace(/_/g, '/'));
 }
 
+function logicalKeyFromStorageKey(storageKey: string): string {
+  const raw = String(storageKey).trim();
+  if (!raw) return raw;
+
+  if (raw.startsWith('source:')) {
+    const payload = raw.slice(7);
+    try {
+      return decodeStorageKey(payload);
+    } catch {
+      return payload;
+    }
+  }
+
+  try {
+    return decodeStorageKey(raw);
+  } catch {
+    return raw;
+  }
+}
+
 export function listLocalImages(): Promise<string[]> {
   return new Promise(async (resolve, reject) => {
     const db = await openImageDb();
     const tx = db.transaction(STORE_NAME, 'readonly');
     const store = tx.objectStore(STORE_NAME);
     const request = store.getAllKeys();
-    request.onsuccess = () => resolve(request.result.map((key) => decodeStorageKey(key as string)) as string[] | null ?? []);
+    request.onsuccess = () => {
+      const keys = new Set<string>();
+      for (const storageKey of request.result) {
+        const logical = logicalKeyFromStorageKey(String(storageKey));
+        if (logical) keys.add(logical);
+      }
+      resolve([...keys]);
+    };
     request.onerror = () => reject(request.error);
   });
 }
@@ -257,10 +284,48 @@ export async function getLocalImage(key: string): Promise<LocalImageValue | null
   }
 }
 
+function blobToEmbedDataUri(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ''));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+function storedValueToEmbedDataUri(value: LocalImageValue): Promise<string> {
+  if (typeof value === 'string') {
+    if (value.startsWith('data:')) return Promise.resolve(value);
+    return Promise.resolve(`data:image/png;base64,${value}`);
+  }
+  return blobToEmbedDataUri(value);
+}
+
 export async function getLocalImageDataUri(key: string): Promise<string> {
   const stored = await getLocalImage(key);
   if (!stored) return '';
   return storedValueToDataUri(stored);
+}
+
+/** Returns a `data:` URI suitable for $SOURCE embedding (never a blob: URL). */
+export async function getLocalImageEmbedDataUri(key: string): Promise<string> {
+  const stored = await getLocalImage(key);
+  if (!stored) return '';
+  return storedValueToEmbedDataUri(stored);
+}
+
+export async function listLocalImageSources(): Promise<Array<{ key: string; dataUri: string }>> {
+  const keys = await listLocalImages();
+  const out: Array<{ key: string; dataUri: string }> = [];
+
+  for (const key of keys) {
+    const dataUri = await getLocalImageEmbedDataUri(key);
+    if (dataUri && hasDataUriPayload(dataUri)) {
+      out.push({ key, dataUri });
+    }
+  }
+
+  return out;
 }
 
 export function localRefFromKey(key: string): string {

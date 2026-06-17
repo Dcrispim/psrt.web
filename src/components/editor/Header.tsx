@@ -12,7 +12,6 @@ import { navigateTo } from '../../lib/hashRoute';
 import { APP_NAME, LOGO_SMALL_SRC } from '../../lib/branding';
 import s from './header.module.css';
 import { logger } from '../../api/logger';
-
 export function Header() {
   const {
     document: editorDoc,
@@ -95,6 +94,8 @@ export function Header() {
 
   const handleSaveOption = useCallback(
     (option: SaveOption, variantFiles: File[], includeSources: boolean) => {
+
+
       setSaveModalOpen(false);
       const run =
         option === 'psrt'
@@ -139,8 +140,18 @@ export function Header() {
     if (ok) removePage();
   };
 
+  const connectorDotClass =
+    status === 'online'
+      ? s.connectorDotOn
+      : status === 'unpaired'
+        ? s.connectorDotWarn
+        : status === 'offline'
+          ? s.connectorDotOff
+          : s.connectorDotUnknown;
+
   return (
     <header className={s.root} role="toolbar" aria-label="Barra do editor">
+      {/* Linha 1: marca, arquivo, conexão, navegação, histórico, salvar */}
       <div className={s.row}>
         <div className={s.brand}>
           <img
@@ -156,103 +167,67 @@ export function Header() {
             aria-hidden
           />
           <div className={s.brandText}>
+            <span className={s.brandLabel}>Project</span>
             <strong>{APP_NAME}</strong>
-            <span className={s.subtitle}>
-              {activePage || '—'}
-              {activePage ? <em className={s.dot} title="Página ativa" /> : null}
-            </span>
           </div>
         </div>
 
-        <div className={s.group} aria-label="Arquivo">
-          <button
-            type="button"
-            className={s.btn}
-            title="Novo (Ctrl+N)"
-            onClick={newFile}
-          >
-            <Icon name="new" /> <span>Novo</span>
+        <div className={`${s.group} ${s.segmented}`} aria-label="Arquivo">
+          <button type="button" className={s.segBtn} title="Novo (Ctrl+N)" onClick={newFile}>
+            Novo
           </button>
           <button
             type="button"
-            className={s.btn}
+            className={s.segBtn}
             title="Abrir (Ctrl+O)"
             onClick={() => openFile().catch((err) => {
-              logger('Header', {
-                error: err.message,
-              });
+              logger('Header', { error: err.message });
               showToast(String(err));
             })}
           >
-            <Icon name="folder" /> <span>Abrir</span>
+            Abrir
           </button>
           <button
             type="button"
-            className={`${s.btn} ${s.primary}`}
-            title="Salvar (Ctrl+S)"
-            disabled={!hasDoc}
-            onClick={() => save().catch((err) => {
-              logger('Header', {
-                error: err,
-              });
-              showToast(String(err));
-            })}
-          >
-            <Icon name="save" /> <span>Salvar</span>
-          </button>
-          <button
-            type="button"
-            className={s.btn}
-            title="Modo leitura (webtoon)"
-            onClick={() => navigateTo('reader')}
-          >
-            <span>Reader</span>
-          </button>
-          <button
-            type="button"
-            className={s.btn}
-            title="Ver logs da aplicação"
-            onClick={() => setLogsModalOpen(true)}
-          >
-            <Icon name="logs" /> <span>Logs</span>
-          </button>
-          <button
-            type="button"
-            className={s.btn}
-            title="Configurar Local Connector"
-            onClick={() => setConnectorModalOpen(true)}
-          >
-            <span
-              className={`${s.connectorDot} ${
-                status === 'online'
-                  ? s.connectorDotOn
-                  : status === 'unpaired'
-                    ? s.connectorDotWarn
-                    : status === 'offline'
-                      ? s.connectorDotOff
-                      : s.connectorDotUnknown
-              }`}
-              aria-hidden
-            />
-            <span>Local Connector</span>
-          </button>
-          <button
-            type="button"
-            className={s.iconBtn}
-            title="Salvar / exportar (Ctrl+Shift+S)"
-            aria-label="Salvar como"
+            className={s.segBtn}
+            title="Salvar como (Ctrl+Shift+S)"
             disabled={!hasDoc}
             onClick={() => setSaveModalOpen(true)}
           >
-            <Icon name="saveAs" />
+            Salvar como
           </button>
-
-          {
-            savingHtml && (
-              <Icon name="spinner-loading" />
-            )
-          }
         </div>
+
+        <button
+          type="button"
+          className={s.connectorPill}
+          title="Configurar Local Connector"
+          onClick={() => setConnectorModalOpen(true)}
+        >
+          <span className={`${s.connectorDot} ${connectorDotClass}`} aria-hidden />
+          Local Connector
+        </button>
+
+        <nav className={s.navGroup} aria-label="Navegação">
+          <button
+            type="button"
+            className={s.navLink}
+            title="Modo leitura (webtoon)"
+            onClick={() => navigateTo('reader')}
+          >
+            Reader
+          </button>
+          <button
+            type="button"
+            className={s.navLink}
+            title="Ver logs da aplicação"
+            onClick={() => setLogsModalOpen(true)}
+          >
+            Logs
+          </button>
+        </nav>
+
+        <div className={s.spacer} />
 
         <div className={s.group} aria-label="Histórico">
           <button
@@ -277,130 +252,71 @@ export function Header() {
           </button>
         </div>
 
-        <div className={s.spacer} />
+        {savingHtml ? (
+          <span className={s.savingIndicator} title="Gerando HTML…" aria-hidden>
+            <Icon name="spinner" />
+          </span>
+        ) : null}
 
-        <div className={`${s.group} ${s.segmented}`} aria-label="Exportar">
-          <button
-            type="button"
-            className={s.segBtn}
-            title="Download SVG"
-            // TODO: Implement js-sdk export svg
-            disabled={true}
-            onClick={() => saveAsSvg().catch((err) => {
-              logger('Header', {
-                error: err,
-              });
-              showToast(String(err));
-            })}
-          >
-            <Icon name="svg" /> SVG
-          </button>
-          <button
-            type="button"
-            className={`${s.segBtn}${previewTab === 'html' ? ` ${s.segBtnActive}` : ''}`}
-            title="Preview HTML da página"
-            aria-pressed={previewTab === 'html'}
-            disabled={!hasDoc || savingHtml}
-            onClick={() => compileHtml().catch((err) => {
-              logger('Header', {
-                error: err,
-              });
-              showToast(String(err));
-            })}
-          >
-            <Icon name="html" /> HTML
-          </button>
-        </div>
+        <button
+          type="button"
+          className={`${s.btn} ${s.primary}`}
+          title="Salvar (Ctrl+S)"
+          disabled={!hasDoc}
+          onClick={() => save().catch((err) => {
+            logger('Header', { error: err });
+            showToast(String(err));
+          })}
+        >
+          Salvar
+        </button>
       </div>
 
+      {/* Linha 2: páginas, reordenação, recursos, exportação */}
       <div className={`${s.row} ${s.rowSub}`}>
-        <div className={s.field}>
-          <label className={s.fieldLabel} htmlFor="page-select">
-            Página
-          </label>
-          <select
-            id="page-select"
-            className={s.select}
-            value={activePage}
-            disabled={pages.length === 0}
-            onChange={(e) => setActivePage(e.target.value)}
-          >
-            {pages.length === 0 ? (
-              <option value="">—</option>
-            ) : (
-              pages.map((p) => (
-                <option key={p.name} value={p.name}>
-                  {p.name}
-                </option>
-              ))
-            )}
-          </select>
-        </div>
-
-        <div className={s.group} aria-label="Gerenciar páginas">
-          <button
-            type="button"
-            className={s.btn}
-            title="Adicionar página"
-            disabled={!state}
-            onClick={handleAddPage}
-          >
-            <Icon name="plus" /> <span>Nova</span>
-          </button>
-          <button
-            type="button"
-            className={s.btn}
-            title="Constantes ($CONSTS)"
-            disabled={!hasDoc}
-            onClick={() => setConstModalOpen(true)}
-          >
-            <Icon name="const" /> <span>Const</span>
-          </button>
-          <button
-            type="button"
-            className={s.btn}
-            title="Adicionar fonte ($FONTS)"
-            disabled={!hasDoc}
-            onClick={() => setFontModalOpen(true)}
-          >
-            <Icon name="font" /> <span>Font</span>
-          </button>
-          <button
-            type="button"
-            className={s.btn}
-            title="Assets"
-            onClick={() => navigateTo('local-assets')}
-          >
-            <Icon name="assets" /> <span>Assets</span>
-          </button>
-          <button
-            type="button"
-            className={`${s.iconBtn} ${s.danger}`}
-            title="Remover página atual"
-            aria-label="Remover página"
-            disabled={!activePage}
-            onClick={handleRemovePage}
-          >
-            <Icon name="trash" />
-          </button>
-        </div>
-
-        <div className={s.spacer} />
-
-        <div className={s.field}>
-          <label className={s.fieldLabel} htmlFor="ref-page">
-            Referência
-          </label>
-          <div className={s.inputGroup}>
-            <Icon name="link" />
-            <input
-              id="ref-page"
-              className={s.input}
-              placeholder="página de referência"
-              value={pageMoveRef}
-              disabled={!hasDoc}
-              onChange={(e) => setPageMoveRef(e.target.value)}
-            />
+        <div className={s.section} aria-label="Páginas">
+          <span className={s.sectionLabel}>Página</span>
+          <div className={s.pagePanel}>
+            <select
+              id="page-select"
+              className={s.select}
+              value={activePage}
+              disabled={pages.length === 0}
+              aria-label="Selecionar página"
+              onChange={(e) => setActivePage(e.target.value)}
+            >
+              {pages.length === 0 ? (
+                <option value="">—</option>
+              ) : (
+                pages.map((p) => (
+                  <option key={p.name} value={p.name}>
+                    {p.name}
+                  </option>
+                ))
+              )}
+            </select>
+            <div className={s.pageActions}>
+              <button
+                type="button"
+                className={s.iconBtn}
+                title="Adicionar página"
+                aria-label="Adicionar página"
+                disabled={!state}
+                onClick={handleAddPage}
+              >
+                <Icon name="plus" />
+              </button>
+              <button
+                type="button"
+                className={`${s.iconBtn} ${s.danger}`}
+                title="Remover página atual"
+                aria-label="Remover página"
+                disabled={!activePage}
+                onClick={handleRemovePage}
+              >
+                <Icon name="trash" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -423,6 +339,87 @@ export function Header() {
           >
             <Icon name="arrowDown" /> Depois
           </button>
+        </div>
+
+        <div className={s.field}>
+          <label className={s.fieldLabel} htmlFor="ref-page">
+            Ref
+          </label>
+          <div className={s.inputGroup}>
+            <Icon name="link" />
+            <input
+              id="ref-page"
+              className={s.input}
+              placeholder="página de referência"
+              value={pageMoveRef}
+              disabled={!hasDoc}
+              onChange={(e) => setPageMoveRef(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className={s.spacer} />
+
+        <div className={s.section} aria-label="Recursos do documento">
+          <div className={s.group}>
+            <button
+              type="button"
+              className={s.btn}
+              title="Constantes ($CONSTS)"
+              disabled={!hasDoc}
+              onClick={() => setConstModalOpen(true)}
+            >
+              Const
+            </button>
+            <button
+              type="button"
+              className={s.btn}
+              title="Adicionar fonte ($FONTS)"
+              disabled={!hasDoc}
+              onClick={() => setFontModalOpen(true)}
+            >
+              Font
+            </button>
+            <button
+              type="button"
+              className={s.btn}
+              title="Assets"
+              onClick={() => navigateTo('local-assets')}
+            >
+              Assets
+            </button>
+          </div>
+        </div>
+
+        <div className={s.section} aria-label="Exportar">
+          <span className={s.sectionLabel}>Exportar</span>
+          <div className={`${s.group} ${s.segmented}`}>
+            <button
+              type="button"
+              className={s.segBtn}
+              title="Download SVG"
+              disabled
+              onClick={() => saveAsSvg().catch((err) => {
+                logger('Header', { error: err });
+                showToast(String(err));
+              })}
+            >
+              SVG
+            </button>
+            <button
+              type="button"
+              className={`${s.segBtn}${previewTab === 'html' ? ` ${s.segBtnActive}` : ''}`}
+              title="Preview HTML da página"
+              aria-pressed={previewTab === 'html'}
+              disabled={!hasDoc || savingHtml}
+              onClick={() => compileHtml().catch((err) => {
+                logger('Header', { error: err });
+                showToast(String(err));
+              })}
+            >
+              HTML
+            </button>
+          </div>
         </div>
       </div>
 
@@ -544,6 +541,9 @@ function Icon({ name }: { name: string }) {
         <path d="M4 6h16M4 12h16M4 18h10" />
         <path d="M18 16v4M16 18h4" />
       </>
+    ),
+    spinner: (
+      <path d="M12 3a9 9 0 1 0 9 9" />
     ),
   };
 

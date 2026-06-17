@@ -171,7 +171,6 @@ function RootRouter() {
     return <ReaderBootstrap />;
   }
   if (route === 'local-assets') {
-    console.log('route', route);
     return <AssetGallery />;
   }
   return <Bootstrap />;

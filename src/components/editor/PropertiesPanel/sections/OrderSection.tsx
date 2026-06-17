@@ -24,8 +24,8 @@ export function OrderSection() {
     >
       <div className={s.grid2}>
         <button
-        className={s.smallBtn}
-          onClick={() => moveBlockOrder("up")}
+          className={s.smallBtn}
+          onClick={() => moveBlockOrder(Number(block.id), "up")}
           title="Move o bloco para depois no arquivo, trazendo-o para frente"
         >
           Trazer para Frente
@@ -33,7 +33,7 @@ export function OrderSection() {
         </button>
         <button
           className={s.smallBtn}
-          onClick={() => moveBlockOrder("down")}
+          onClick={() => moveBlockOrder(Number(block.id), "down")}
           title="Move o bloco para antes no arquivo, enviando-o para trás"
         >
           Enviar para Trás
