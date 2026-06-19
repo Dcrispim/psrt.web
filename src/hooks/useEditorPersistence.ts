@@ -7,6 +7,7 @@ import { ingestPsrtSources } from '../lib/ingestPsrtSources';
 import { saveLastPsrt } from '../lib/localPsrt';
 import { sanitizeDocumentStylesForSave } from '../lib/textBlockAdapter';
 import { editorApiJson } from '../lib/editorApiSerialize';
+import { clearDraft } from '../services/documentStore';
 
 async function parseEditorDocument(json: string) {
   const parsed = parseDocumentJson(json);
@@ -36,7 +37,9 @@ export function useEditorPersistence() {
 
   const newFile = useCallback(() => {
     resetDocument(createEmptyDocument(), '');
-    showToast('Novo documento');
+    void clearDraft().then(() => {
+      showToast('Novo documento');
+    });
   }, [resetDocument, showToast]);
 
   const save = useCallback(async () => {

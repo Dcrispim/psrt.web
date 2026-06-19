@@ -12,6 +12,7 @@ import { navigateTo } from '../../lib/hashRoute';
 import { APP_NAME, LOGO_SMALL_SRC } from '../../lib/branding';
 import s from './header.module.css';
 import { logger } from '../../api/logger';
+import { AlertModal } from './AlertModal';
 export function Header() {
   const {
     document: editorDoc,
@@ -36,6 +37,7 @@ export function Header() {
     compileHtml,
     previewTab,
   } = useEditor();
+  const [showConfirmNewFile, setShowConfirmNewFile] = useState(false);
   const { openFile, newFile, save, saveAs } = useEditorPersistence();
   const { status } = useConnector();
   const { confirm, prompt } = useAlertModal();
@@ -50,6 +52,10 @@ export function Header() {
   const hasDoc = Boolean(editorDoc);
   const documentConsts = state?.consts ?? {};
   const existingFontUrls = state?.fonts ?? [];
+
+  const handleNewFile = () => {
+    setShowConfirmNewFile(true);
+  }
 
   const onKey = useCallback(
     (e: KeyboardEvent) => {
@@ -173,7 +179,7 @@ export function Header() {
         </div>
 
         <div className={`${s.group} ${s.segmented}`} aria-label="Arquivo">
-          <button type="button" className={s.segBtn} title="Novo (Ctrl+N)" onClick={newFile}>
+          <button type="button" className={s.segBtn} title="Novo (Ctrl+N)" onClick={handleNewFile}>
             Novo
           </button>
           <button
@@ -464,6 +470,14 @@ export function Header() {
         onClose={() => setConnectorModalOpen(false)}
       />
       <LogsModal open={logsModalOpen} onClose={() => setLogsModalOpen(false)} />
+      <ConfirmNewFileModal
+        showConfirmNewFile={showConfirmNewFile}
+        setShowConfirmNewFile={setShowConfirmNewFile}
+        onConfirm={() => {
+          setShowConfirmNewFile(false);
+          newFile()
+        }}
+      />
     </header>
   );
 }
@@ -564,3 +578,18 @@ function Icon({ name }: { name: string }) {
   );
 }
 
+const ConfirmNewFileModal = ({ showConfirmNewFile, setShowConfirmNewFile, onConfirm }: { showConfirmNewFile: boolean, setShowConfirmNewFile: (show: boolean) => void, onConfirm: () => void }) => {
+  return (
+    <AlertModal
+      open={showConfirmNewFile}
+      mode="confirm"
+      title="Novo arquivo"
+      message="Deseja criar um novo arquivo? Todas as alterações serão perdidas."
+      confirmLabel="Sim"
+      cancelLabel="Não"
+      danger={false}
+      onConfirm={onConfirm}
+      onCancel={() => setShowConfirmNewFile(false)}
+    />
+  );
+};
