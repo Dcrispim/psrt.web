@@ -3,7 +3,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
-const repoBase = '/psrt-gui-web/';
+const repoBase = '/';
 const base = process.env.GITHUB_PAGES === 'true' ? repoBase : '/';
 
 export default defineConfig({
